@@ -2,6 +2,12 @@
 
 A lightweight browser extension for Rapid Serial Visual Presentation (RSVP) reading that is fast, customizable, fully open-source, and completely local.
 
+## Demo
+
+<p align="center">
+  <img src="RSVP Reader Demo.gif" alt="RSVP Reader Demo">
+</p>
+
 ## ⚡ Quick Start
 1. Download `/dist`
 2. Load unpacked extension from your browser
