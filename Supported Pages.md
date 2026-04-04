@@ -1,0 +1,24 @@
+### Currently Supported Sites:
+
+- **Royal Road:** [royalroad.com](https://royalroad.com)
+- **Scribble Hub:** [scribblehub.com](https://scribblehub.com)
+- **Webnovel:** [webnovel.com](https://webnovel.com)
+- **Wattpad:** [wattpad.com](https://wattpad.com)
+- **AO3:** [archiveofourown.org](https://archiveofourown.org)
+- **Fanfiction:** [fanfiction.net](https://fanfiction.net)
+- **SpaceBattles / SufficientVelocity:**
+  - [forums.spacebattles.com](https://forums.spacebattles.com)
+  - [forums.sufficientvelocity.com](https://forums.sufficientvelocity.com)
+- **NovelBin:**
+  - [novelbin.com](https://novelbin.com)
+  - [novelbin.org](https://novelbin.org)
+  - [novelbin.cc](https://novelbin.cc)
+- **Ranobes:**
+  - [ranobes.com](https://ranobes.com)
+  - [ranobes.my](https://ranobes.my)
+  - [ranobes.world](https://ranobes.world)
+  - [ranobes.top](https://ranobes.top)
+- **WTR Lab:**
+  - [wtr-lab.com](https://wtr-lab.com)
+  - [echo.wtr-lab.com](https://echo.wtr-lab.com)
+- **Wordpress Blogs:** `*.wordpress.com`
