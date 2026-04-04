@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RSVP Reader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-root">
+
+    <header class="popup-header">
+      <div class="popup-logo">
+        <span class="logo-r">R</span><span class="logo-svp">SVP</span>
+      </div>
+      <span class="popup-version">v0.1</span>
+    </header>
+
+    <div class="status-banner" id="statusBanner">
+      <span id="statusText">Detecting page…</span>
+    </div>
+
+    <button class="open-btn" id="openBtn" disabled>
+      <svg id="openIcon" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M5 4l12 6-12 6V4z"/>
+      </svg>
+      <span id="openLabel">Start Reading</span>
+    </button>
+
+    <div class="quick-row">
+      <div class="quick-item">
+        <label class="quick-label">Speed</label>
+        <div class="quick-speed">
+          <button class="speed-btn" id="speedDown">−</button>
+          <span class="speed-val" id="speedVal">300</span>
+          <span class="speed-unit">WPM</span>
+          <button class="speed-btn" id="speedUp">+</button>
+        </div>
+      </div>
+      <div class="quick-item">
+        <label class="quick-label">Chunk size</label>
+        <div class="quick-speed">
+          <button class="speed-btn" id="chunkDown">−</button>
+          <span class="speed-val" id="chunkVal">1</span>
+          <span class="speed-unit">word(s)</span>
+          <button class="speed-btn" id="chunkUp">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <label class="toggle-item">
+        <span>Bionic</span>
+        <input type="checkbox" id="togBionic">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </label>
+      <label class="toggle-item">
+        <span>Focal point</span>
+        <input type="checkbox" id="togFocal">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </label>
+      <label class="toggle-item">
+        <span>Adaptive</span>
+        <input type="checkbox" id="togAdaptive">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </label>
+    </div>
+
+    <div class="bookmark-row" id="bookmarkRow" style="display:none">
+      <div class="bookmark-info">
+        <svg viewBox="0 0 16 16" fill="currentColor" width="12"><path d="M3 1h10v14l-5-3.5L3 15V1z"/></svg>
+        <span id="bookmarkText">Saved at 45%</span>
+      </div>
+      <button class="bookmark-del" id="bookmarkDel" title="Delete bookmark">✕</button>
+    </div>
+
+    <section class="favorites-panel" id="favoritesPanel" style="display:none">
+      <div class="favorites-title">Favorite sites</div>
+      <div class="favorites-list" id="favoritesList"></div>
+    </section>
+
+    <footer class="popup-footer">
+      <button class="footer-link" id="openOptions">Settings</button>
+      <button class="footer-link" id="openBookmarks">Bookmarks</button>
+      <span class="footer-hint">Alt+R to toggle</span>
+    </footer>
+
+  </div>
+  <script type="module" src="popup.ts"></script>
+</body>
+</html>

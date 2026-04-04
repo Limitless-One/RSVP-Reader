@@ -1,0 +1,31 @@
+{
+  "name": "rsvp-reader",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "preview": "vite build && echo 'Load dist/ as unpacked extension in chrome://extensions'",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.{ts,css,html,json}\" \"tests/**/*.ts\" \"tests/**/*.html\"",
+    "test:unit": "jest --runInBand",
+    "test:e2e": "playwright test",
+    "check:size": "node scripts/check-bundle-size.mjs"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.26",
+    "@playwright/test": "^1.59.1",
+    "@types/chrome": "^0.0.268",
+    "@types/jest": "^30.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "eslint": "^10.1.0",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0",
+    "prettier": "^3.8.1",
+    "ts-jest": "^29.4.9",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}

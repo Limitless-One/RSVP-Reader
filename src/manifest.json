@@ -1,0 +1,92 @@
+{
+  "manifest_version": 3,
+  "name": "RSVP Reader",
+  "version": "0.1.0",
+  "description": "Rapid Serial Visual Presentation reader for web novels. Read faster, focus better.",
+
+  "icons": {
+    "16":  "src/assets/icon16.png",
+    "32":  "src/assets/icon32.png",
+    "48":  "src/assets/icon48.png",
+    "128": "src/assets/icon128.png"
+  },
+
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16":  "src/assets/icon16.png",
+      "32":  "src/assets/icon32.png",
+      "48":  "src/assets/icon48.png",
+      "128": "src/assets/icon128.png"
+    },
+    "default_title": "RSVP Reader"
+  },
+
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.royalroad.com/fiction/*/chapter/*",
+        "*://www.scribblehub.com/read/*",
+        "*://www.webnovel.com/book/*",
+        "*://www.wattpad.com/*",
+        "*://novelbin.com/*",
+        "*://www.novelbin.com/*",
+        "*://novelbin.org/*",
+        "*://www.novelbin.org/*",
+        "*://novelbin.cc/*",
+        "*://www.novelbin.cc/*",
+        "*://ranobes.my/*",
+        "*://www.ranobes.my/*",
+        "*://ranobes.world/*",
+        "*://www.ranobes.world/*",
+        "*://ranobes.com/*",
+        "*://www.ranobes.com/*",
+        "*://ranobes.top/*",
+        "*://www.ranobes.top/*",
+        "*://wtr-lab.com/*",
+        "*://www.wtr-lab.com/*",
+        "*://echo.wtr-lab.com/*",
+        "*://www.fanfiction.net/*",
+        "*://archiveofourown.org/works/*",
+        "*://forums.sufficientvelocity.com/threads/*",
+        "*://forums.spacebattles.com/threads/*",
+        "*://*.wordpress.com/*/*/*/*"
+      ],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+
+  "commands": {
+    "toggle-reader": {
+      "suggested_key": {
+        "default": "Alt+R"
+      },
+      "description": "Open or close RSVP Reader on the current tab"
+    }
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["src/assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

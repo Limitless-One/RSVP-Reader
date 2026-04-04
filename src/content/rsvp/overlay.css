@@ -1,0 +1,390 @@
+/* ── Reset inside shadow DOM ─────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Backdrop ────────────────────────────────────────────────────────────── */
+.rsvp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483640;
+  background: var(--rsvp-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--rsvp-font);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.rsvp-key-sink {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  left: -9999px;
+  top: -9999px;
+}
+
+/* Background image support */
+.rsvp-backdrop.has-bg-image {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.rsvp-backdrop.has-bg-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--rsvp-bg);
+  opacity: var(--rsvp-overlay-opacity);
+  pointer-events: none;
+}
+
+/* ── Main panel ──────────────────────────────────────────────────────────── */
+.rsvp-panel {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.rsvp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 16px;
+  opacity: 0.55;
+  transition: opacity 0.25s;
+}
+.rsvp-header:hover { opacity: 1; }
+
+.rsvp-chapter-title {
+  font-size: 13px;
+  color: var(--rsvp-text);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.rsvp-top-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rsvp-wpm-display {
+  font-size: 13px;
+  color: var(--rsvp-text);
+  letter-spacing: 0.04em;
+  min-width: 60px;
+  text-align: right;
+  cursor: default;
+}
+
+.rsvp-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--rsvp-text);
+  opacity: 0.7;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+.rsvp-icon-btn:hover { opacity: 1; background: rgba(255,255,255,0.08); }
+.rsvp-icon-btn svg { width: 16px; height: 16px; }
+
+/* ── Word display ────────────────────────────────────────────────────────── */
+.rsvp-display {
+  position: relative;
+  width: 100%;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 24px;
+  background: rgba(0,0,0,0.18);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* Focal point (ORP guide line) */
+.rsvp-focal-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--rsvp-focal-x, 50%) - 1px);
+  width: 2px;
+  background: var(--rsvp-focal-color);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  border-radius: 2px;
+}
+.rsvp-focal-line.visible { opacity: 0.7; }
+
+.rsvp-word-wrap {
+  text-align: center;
+  line-height: 1.15;
+  max-width: 100%;
+  min-height: 1.3em;
+}
+
+.rsvp-word-wrap .rsvp-word {
+  font-size: var(--rsvp-font-size);
+  color: var(--rsvp-text);
+  letter-spacing: 0.01em;
+  display: inline-block;
+  transition: opacity 0.06s;
+}
+
+/* Bionic bold */
+.rsvp-word-wrap b {
+  font-weight: 700;
+  color: var(--rsvp-text);
+}
+
+/* Multi-word chunk: words separated by a thin space */
+.rsvp-word-wrap .rsvp-token + .rsvp-token::before {
+  content: ' ';
+}
+
+/* Flash animation when chunk changes */
+@keyframes rsvp-flash {
+  0%   { opacity: 0.35; }
+  100% { opacity: 1; }
+}
+.rsvp-word-wrap.flash { animation: rsvp-flash 0.07s ease-out forwards; }
+
+/* ── Progress bar ────────────────────────────────────────────────────────── */
+.rsvp-progress-area {
+  padding: 14px 0 4px;
+}
+
+.rsvp-progress-track {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.rsvp-progress-track:hover { height: 6px; margin-top: -3px; }
+.rsvp-progress-track:hover .rsvp-progress-fill { border-radius: 6px; }
+
+.rsvp-progress-fill {
+  height: 100%;
+  background: var(--rsvp-focal-color);
+  border-radius: 3px;
+  transition: width 0.12s linear;
+  pointer-events: none;
+}
+
+/* ── Session panel ───────────────────────────────────────────────────────── */
+.rsvp-session-panel {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.14);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.rsvp-session-panel.hidden { display: none; }
+.rsvp-session-body {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+.rsvp-session-body.hidden { display: none; }
+.rsvp-session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--rsvp-text);
+  opacity: 0.78;
+}
+.rsvp-session-row strong {
+  color: var(--rsvp-text);
+  font-weight: 600;
+}
+
+/* ── Bottom controls ─────────────────────────────────────────────────────── */
+.rsvp-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px 0;
+  opacity: 0.6;
+  transition: opacity 0.25s;
+}
+.rsvp-footer:hover { opacity: 1; }
+
+.rsvp-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rsvp-ctrl-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--rsvp-text);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.rsvp-ctrl-btn:hover {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.30);
+}
+.rsvp-ctrl-btn.primary {
+  background: var(--rsvp-focal-color);
+  border-color: transparent;
+  padding: 5px 18px;
+  font-size: 13px;
+}
+.rsvp-ctrl-btn.primary:hover { filter: brightness(1.15); }
+.rsvp-ctrl-btn.secondary {
+  width: 100%;
+  justify-content: center;
+}
+.rsvp-ctrl-btn svg { width: 14px; height: 14px; }
+
+.rsvp-stats-text {
+  font-size: 11px;
+  color: var(--rsvp-text);
+  opacity: 0.5;
+  text-align: right;
+  min-width: 140px;
+}
+
+/* ── Bookmark toast ──────────────────────────────────────────────────────── */
+.rsvp-toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: rgba(30,30,30,0.95);
+  color: #f0f0f0;
+  font-size: 13px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: 2147483647;
+  white-space: nowrap;
+}
+.rsvp-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+.rsvp-toast button {
+  background: none;
+  border: none;
+  color: var(--rsvp-focal-color);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ── Speed bump indicator ────────────────────────────────────────────────── */
+.rsvp-speed-bump {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--rsvp-text);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.rsvp-speed-bump.visible { opacity: 0.85; }
+
+/* ── Keyboard shortcut hint overlay ─────────────────────────────────────── */
+.rsvp-hints {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  font-size: 11px;
+  color: var(--rsvp-text);
+  opacity: 0;
+  transition: opacity 0.3s;
+  text-align: right;
+  line-height: 1.8;
+  pointer-events: none;
+}
+.rsvp-hints.visible { opacity: 0.35; }
+.rsvp-hints kbd {
+  font-family: monospace;
+  background: rgba(255,255,255,0.12);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+/* ── Chapter nav buttons ─────────────────────────────────────────────────── */
+.rsvp-chapter-nav {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .rsvp-panel {
+    width: min(94vw, 720px);
+  }
+
+  .rsvp-header,
+  .rsvp-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .rsvp-top-controls,
+  .rsvp-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .rsvp-session-body {
+    grid-template-columns: 1fr;
+  }
+
+  .rsvp-word-wrap .rsvp-word {
+    font-size: min(var(--rsvp-font-size), 16vw);
+  }
+}

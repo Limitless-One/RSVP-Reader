@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RSVP Reader — Settings</title>
+  <script type="module" crossorigin src="/assets/options.html-D_W60e1U.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/assets/constants-CzKeU0vg.js">
+  <link rel="modulepreload" crossorigin href="/assets/pacing-DoJqeYZh.js">
+  <link rel="stylesheet" crossorigin href="/assets/options.css">
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Sidebar nav -->
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-r">R</span><span class="logo-svp">SVP</span>
+        <span class="logo-sub">Reader</span>
+      </div>
+      <ul class="nav-list">
+        <li><a href="#playback"   class="nav-link active" data-section="playback">Playback</a></li>
+        <li><a href="#display"    class="nav-link"         data-section="display">Display</a></li>
+        <li><a href="#adhd"       class="nav-link"         data-section="adhd">ADHD features</a></li>
+        <li><a href="#supported"  class="nav-link"         data-section="supported">Supported pages</a></li>
+        <li><a href="#shortcuts"  class="nav-link"         data-section="shortcuts">Shortcuts</a></li>
+        <li><a href="#personalization" class="nav-link"    data-section="personalization">Personalization</a></li>
+        <li><a href="#bookmarks"  class="nav-link"         data-section="bookmarks">Bookmarks</a></li>
+        <li><a href="#advanced"   class="nav-link"         data-section="advanced">Advanced</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <button class="danger-link" id="resetBtn">Reset to defaults</button>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="content" id="mainContent">
+
+      <!-- Save banner -->
+      <div class="save-banner" id="saveBanner">Settings saved</div>
+
+      <!-- ── Playback ── -->
+      <section class="section" id="sec-playback">
+        <h2 class="section-title">Playback</h2>
+
+        <div class="field">
+          <label class="field-label" for="wpm">Reading speed <span class="field-hint">words per minute</span></label>
+          <div class="slider-row">
+            <input type="range" id="wpm" min="60" max="1500" step="10" class="slider">
+            <span class="slider-val" id="wpmVal">300 WPM</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="wpmStep">Speed step</label>
+          <select id="wpmStep" class="select">
+            <option value="10">10 WPM</option>
+            <option value="25">25 WPM</option>
+            <option value="50">50 WPM</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="chunkSize">Chunk size <span class="field-hint">words displayed at once</span></label>
+          <div class="chip-group" id="chunkGroup">
+            <button class="chip active" data-value="1">1</button>
+            <button class="chip"        data-value="2">2</button>
+            <button class="chip"        data-value="3">3</button>
+            <button class="chip"        data-value="4">4</button>
+            <button class="chip"        data-value="5">5</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Warmup ramp</div>
+              <div class="field-hint">Start slow, ramp up to full speed over the first 15 chunks</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="warmupRamp"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Adaptive pacing</div>
+              <div class="field-hint">Slower for punctuation, numbers, long words; faster for stop words</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="adaptivePacing"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Sentence mode</div>
+              <div class="field-hint">Snap chunk boundaries to sentence ends for better comprehension</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="sentenceMode"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="authorNotesMode">Author notes</label>
+          <select id="authorNotesMode" class="select">
+            <option value="exclude">Strip author notes from extracted text</option>
+            <option value="include">Keep author notes in the reader</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Auto-advance chapters</div>
+              <div class="field-hint">After the chapter ends, continue after a 3 second countdown you can cancel</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="autoAdvanceChapter"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <!-- Punctuation pause -->
+        <div class="field">
+          <label class="field-label" for="pauseUnified">Punctuation pause
+            <span class="field-hint">Extra time added after each punctuation mark</span>
+          </label>
+          <div class="slider-row">
+            <input type="range" id="pauseUnified" min="1" max="4" step="0.1" class="slider">
+            <span class="slider-val" id="pauseUnifiedVal">1.8×</span>
+          </div>
+
+          <!-- Expandable detail panel -->
+          <details class="pause-details" id="pauseDetails">
+            <summary class="pause-summary">Customize per punctuation type</summary>
+            <div class="pause-grid">
+
+              <div class="pause-row">
+                <span class="pause-label">Clause <span class="pause-chars">, ; :</span></span>
+                <div class="slider-row pause-slider-row">
+                  <input type="range" id="pauseClause" min="1" max="4" step="0.1" class="slider">
+                  <span class="slider-val" id="pauseClauseVal">1.3×</span>
+                </div>
+              </div>
+
+              <div class="pause-row">
+                <span class="pause-label">Sentence end <span class="pause-chars">. ! ?</span></span>
+                <div class="slider-row pause-slider-row">
+                  <input type="range" id="pauseSentenceEnd" min="1" max="4" step="0.1" class="slider">
+                  <span class="slider-val" id="pauseSentenceEndVal">1.8×</span>
+                </div>
+              </div>
+
+              <div class="pause-row">
+                <span class="pause-label">Dash <span class="pause-chars">— –</span></span>
+                <div class="slider-row pause-slider-row">
+                  <input type="range" id="pauseDash" min="1" max="4" step="0.1" class="slider">
+                  <span class="slider-val" id="pauseDashVal">2.0×</span>
+                </div>
+              </div>
+
+              <div class="pause-row">
+                <span class="pause-label">Ellipsis <span class="pause-chars">… ...</span></span>
+                <div class="slider-row pause-slider-row">
+                  <input type="range" id="pauseEllipsis" min="1" max="4" step="0.1" class="slider">
+                  <span class="slider-val" id="pauseEllipsisVal">2.0×</span>
+                </div>
+              </div>
+
+            </div>
+          </details>
+        </div>
+
+      </section>
+
+
+      <!-- ── Display ── -->
+      <section class="section hidden" id="sec-display">
+        <h2 class="section-title">Display</h2>
+
+        <div class="field">
+          <label class="field-label" for="fontSelect">Font</label>
+          <select id="fontSelect" class="select"></select>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="fontSize">Font size <span class="field-hint">px</span></label>
+          <div class="slider-row">
+            <input type="range" id="fontSize" min="24" max="96" step="2" class="slider">
+            <span class="slider-val" id="fontSizeVal">48px</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Theme</label>
+          <div class="theme-grid" id="themeGrid"></div>
+        </div>
+
+        <div class="field colors-row">
+          <div class="color-field">
+            <label class="field-label" for="textColor">Text color</label>
+            <input type="color" id="textColor" class="color-picker">
+          </div>
+          <div class="color-field">
+            <label class="field-label" for="bgColor">Background</label>
+            <input type="color" id="bgColor" class="color-picker">
+          </div>
+          <div class="color-field">
+            <label class="field-label" for="overlayOpacity">Opacity</label>
+            <div class="slider-row">
+              <input type="range" id="overlayOpacity" min="0.5" max="1" step="0.05" class="slider" style="width:80px">
+              <span class="slider-val" id="opacityVal">97%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Background image <span class="field-hint">optional</span></label>
+          <div class="bg-image-row">
+            <input type="file" id="bgImageFile" accept="image/*" style="display:none">
+            <button class="sec-btn" id="bgImageBtn">Choose image…</button>
+            <button class="sec-btn danger" id="bgImageClear" style="display:none">Clear</button>
+            <span class="field-hint" id="bgImageName"></span>
+          </div>
+          <div class="bg-preview" id="bgPreview" style="display:none"></div>
+        </div>
+
+        <!-- Live preview -->
+        <div class="field">
+          <label class="field-label">Preview</label>
+          <div class="preview-box" id="previewBox">
+            <div class="preview-word" id="previewWord">Reading</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── ADHD features ── -->
+      <section class="section hidden" id="sec-adhd">
+        <h2 class="section-title">ADHD features</h2>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Bionic reading</div>
+              <div class="field-hint">Bold the first 45% of each word's letters to anchor the eye</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="adhdBionic"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+          <div class="bionic-demo" id="bionicDemo">
+            <span><b>Bio</b>nic <b>rea</b>ding <b>ma</b>kes <b>wor</b>ds <b>ea</b>sier <b>t</b>o <b>sca</b>n</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Focal point (ORP guide)</div>
+              <div class="field-hint">A fixed guide line at the Optimal Recognition Point — train your eye to stay still</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="adhdFocalPoint"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field" id="focalColorField">
+          <label class="field-label" for="focalColor">Guide line color</label>
+          <input type="color" id="focalColor" class="color-picker">
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Show session stats</div>
+              <div class="field-hint">Display live reading stats below the reader controls</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="showStats"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Highlight current paragraph</div>
+              <div class="field-hint">Keep the source page in sync with the active chunk</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="highlightParagraph"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="section hidden" id="sec-supported">
+        <h2 class="section-title">Supported pages</h2>
+        <p class="section-desc">Choose which parsers are active, and star favorites so they appear as quick links in the popup.</p>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Follow translated page text</div>
+              <div class="field-hint">If Brave or Chrome Translate rewrites the current page, keep your word position and refresh the reader from the translated DOM when possible.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="preferTranslatedText"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Parsers</div>
+          <div class="supported-sites" id="supportedSitesList"></div>
+        </div>
+
+        <div class="field">
+          <div class="about-card">
+            <p><strong>Non-English scripts</strong> are supported as long as the page exposes readable text in the DOM.</p>
+            <p><strong>Translated pages</strong> work best when the browser replaces the visible page text directly.</p>
+            <p><strong>WTR-LAB</strong> defaults to the <code>webplus</code> view by appending <code>?service=webplus</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Shortcuts ── -->
+      <section class="section hidden" id="sec-shortcuts">
+        <h2 class="section-title">Keyboard shortcuts</h2>
+        <p class="section-desc">Click a shortcut to rebind it, then press the new key.</p>
+        <div class="shortcuts-grid" id="shortcutsGrid"></div>
+        <p class="field-hint" style="margin-top:16px">Global shortcut: <kbd>Alt+R</kbd> — open/close reader from any page</p>
+      </section>
+
+      <section class="section hidden" id="sec-personalization">
+        <h2 class="section-title">Personalization</h2>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Enable personalized pacing</div>
+              <div class="field-hint">Opt in to a fully local pacing model trained on rewinds, pauses, and speed changes.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="personalizationEnabled"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Consent to local training data</div>
+              <div class="field-hint">Required before the extension can log reading events for the on-device model.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="personalizationConsent"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Training status</div>
+          <div class="about-card">
+            <p>Words since last training: <strong id="personalizationWords">0</strong></p>
+            <p>Last trained: <strong id="personalizationTrainedAt">Never</strong></p>
+            <p>Events stored: <strong id="personalizationEvents">0</strong></p>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Comfort trace</div>
+          <div class="chart-card" id="personalizationChart">No personalization data yet.</div>
+        </div>
+
+        <div class="field">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sec-btn" id="exportPersonalization">Export personalization data</button>
+            <button class="sec-btn danger" id="resetPersonalization">Reset personalization</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Bookmarks ── -->
+      <section class="section hidden" id="sec-bookmarks">
+        <h2 class="section-title">Bookmarks</h2>
+        <div class="bookmarks-list" id="bookmarksList">
+          <div class="empty-state">No bookmarks yet. They're saved automatically when you close the reader.</div>
+        </div>
+      </section>
+
+      <!-- ── Advanced ── -->
+      <section class="section hidden" id="sec-advanced">
+        <h2 class="section-title">Advanced</h2>
+
+        <div class="field">
+          <div class="field-label">Export / import bundle</div>
+          <div class="field-hint" style="margin-bottom:10px">Includes settings, bookmarks, and personalization data in a single <code>.rsvp</code> file.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sec-btn" id="exportBundle">Export bundle</button>
+            <button class="sec-btn" id="importBundle">Import bundle…</button>
+            <input type="file" id="importFile" accept=".json,.rsvp" style="display:none">
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">About</div>
+          <div class="about-card">
+            <p><strong>RSVP Reader</strong> v0.1.0</p>
+            <p>100% local — no accounts, no tracking, no servers.</p>
+            <p>Storage used: <span id="storageUsed">…</span></p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+</body>
+</html>
