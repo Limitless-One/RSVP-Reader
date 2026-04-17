@@ -27,6 +27,9 @@
     "service_worker": "service-worker-loader.js",
     "type": "module"
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "content_scripts": [
     {
       "js": [
@@ -58,7 +61,8 @@
         "*://archiveofourown.org/works/*",
         "*://forums.sufficientvelocity.com/threads/*",
         "*://forums.spacebattles.com/threads/*",
-        "*://*.wordpress.com/*/*/*/*"
+        "*://*.wordpress.com/*/*/*/*",
+        "file:///*"
       ],
       "run_at": "document_idle",
       "all_frames": false
@@ -67,7 +71,18 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "tts",
+    "offscreen",
+    "alarms"
+  ],
+  "optional_host_permissions": [
+    "https://huggingface.co/*",
+    "https://*.huggingface.co/*",
+    "https://raw.githubusercontent.com/*",
+    "https://*.xethub.hf.co/*",
+    "https://*.hf.co/*",
+    "https://cdn.jsdelivr.net/*"
   ],
   "commands": {
     "toggle-reader": {
@@ -114,12 +129,16 @@
         "*://www.scribblehub.com/*",
         "*://www.wattpad.com/*",
         "*://www.webnovel.com/*",
-        "*://www.wtr-lab.com/*"
+        "*://www.wtr-lab.com/*",
+        "file:///*"
       ],
       "resources": [
-        "assets/constants-CzKeU0vg.js",
-        "assets/pacing-DoJqeYZh.js",
-        "assets/index.ts-B4KICwJm.js"
+        "assets/local-text-CtZ2qoJ2.js",
+        "assets/constants-DXc9c1ek.js",
+        "assets/training-Dj31lr1i.js",
+        "assets/pacing-C6_k-mBn.js",
+        "assets/feedback-api-ptYw5cJV.js",
+        "assets/index.ts-CVFfVmM-.js"
       ],
       "use_dynamic_url": false
     }

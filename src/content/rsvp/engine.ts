@@ -31,10 +31,12 @@ export class RSVPEngine {
   private wpm: number;
   private settings: Settings;
   private timerId: ReturnType<typeof setTimeout> | null = null;
+  private externalHold = false;
   private listeners: EngineListener[] = [];
   private sourceText = '';
   private sourceBlocks: ParsedBlock[] = [];
   private personalizationPredictor: ((chunk: Chunk) => number) | null = null;
+  private sessionStartWordIndex = 0;
 
   private sessionStart = 0;
   private activeStart = 0;
@@ -53,8 +55,17 @@ export class RSVPEngine {
     this.stop();
     this.sourceText = text;
     this.sourceBlocks = blocks;
-    this.chunks = buildChunks(text, blocks, this.settings.chunkSize, this.settings.sentenceMode);
+    this.chunks = buildChunks(
+      text,
+      blocks,
+      this.settings.chunkSize,
+      this.settings.sentenceMode,
+      this.settings.segmentationMode,
+      this.settings.readingMode,
+      this.settings.adaptiveChunkSizing,
+    );
     this.chunkIndex = this.chunkIndexForWord(startWordIndex);
+    this.sessionStartWordIndex = startWordIndex;
     this.sessionStart = Date.now();
     this.activeMs = 0;
     this.pauseMs = 0;
@@ -103,6 +114,7 @@ export class RSVPEngine {
 
   stop(): void {
     this.clearTimer();
+    this.externalHold = false;
     if (this.playState === 'playing') {
       this.activeMs += Date.now() - this.activeStart;
     }
@@ -186,6 +198,23 @@ export class RSVPEngine {
     return this.chunks[this.chunkIndex] ?? null;
   }
 
+  peekChunk(index: number): Chunk | null {
+    return this.chunks[index] ?? null;
+  }
+
+  setExternalHold(enabled: boolean): void {
+    this.externalHold = enabled;
+    if (enabled) {
+      this.clearTimer();
+    }
+  }
+
+  releaseExternalHold(immediate = false): void {
+    if (!this.externalHold || this.playState !== 'playing') return;
+    this.externalHold = false;
+    this.scheduleNext(immediate);
+  }
+
   setPersonalizationPredictor(predictor: ((chunk: Chunk) => number) | null): void {
     this.personalizationPredictor = predictor;
   }
@@ -196,7 +225,7 @@ export class RSVPEngine {
 
   getSessionStats(): ReadingStats {
     const activeFinal = this.currentActiveMs();
-    const wordsRead = this.getResumeWordIndex();
+    const wordsRead = Math.max(0, this.getResumeWordIndex() - this.sessionStartWordIndex);
     return {
       wordsRead,
       activeTimeMs: activeFinal,
@@ -222,14 +251,25 @@ export class RSVPEngine {
     const resumeWordIndex = this.getResumeWordIndex();
     const needsRebuild =
       settings.chunkSize !== previousSettings.chunkSize ||
-      settings.sentenceMode !== previousSettings.sentenceMode;
+      settings.adaptiveChunkSizing !== previousSettings.adaptiveChunkSizing ||
+      settings.sentenceMode !== previousSettings.sentenceMode ||
+      settings.segmentationMode !== previousSettings.segmentationMode ||
+      settings.readingMode !== previousSettings.readingMode;
 
     this.settings = settings;
     this.wpm = settings.wpm;
 
     if (needsRebuild && this.sourceText) {
       const wasPlaying = this.playState === 'playing';
-      this.chunks = buildChunks(this.sourceText, this.sourceBlocks, settings.chunkSize, settings.sentenceMode);
+      this.chunks = buildChunks(
+        this.sourceText,
+        this.sourceBlocks,
+        settings.chunkSize,
+        settings.sentenceMode,
+        settings.segmentationMode,
+        settings.readingMode,
+        settings.adaptiveChunkSizing,
+      );
       this.chunkIndex = this.chunkIndexForWord(resumeWordIndex);
       if (wasPlaying) {
         this.activeStart = Date.now();
@@ -249,6 +289,7 @@ export class RSVPEngine {
   private scheduleNext(immediate: boolean): void {
     this.clearTimer();
     if (this.playState !== 'playing') return;
+    if (this.externalHold && !immediate) return;
 
     if (immediate) {
       this.showCurrent();
@@ -263,7 +304,7 @@ export class RSVPEngine {
       ? this.personalizationPredictor(previousChunk)
       : 1;
     const delay =
-      (chunkDelay(previousChunk, baseInterval, this.settings.adaptivePacing, this.settings.punctuationPauses) * personalizationMultiplier) /
+      (chunkDelay(previousChunk, baseInterval, this.settings) * personalizationMultiplier) /
       warmupRatio;
 
     this.timerId = setTimeout(() => this.showCurrent(), delay);
@@ -297,10 +338,8 @@ export class RSVPEngine {
       currentChunk,
       wpm: this.wpm,
       remaining: estimateRemaining(
-        this.chunkIndex,
-        this.chunks.length,
+        Math.max(0, this.getTotalWords() - this.getResumeWordIndex()),
         this.wpm,
-        this.settings.chunkSize,
       ),
       totalWords: this.getTotalWords(),
       nextWordIndex: this.getResumeWordIndex(),
@@ -331,6 +370,7 @@ export class RSVPEngine {
 
   private prepareForNavigation(): boolean {
     const wasPlaying = this.playState === 'playing';
+    this.externalHold = false;
     this.clearTimer();
     if (wasPlaying) {
       this.activeMs += Date.now() - this.activeStart;

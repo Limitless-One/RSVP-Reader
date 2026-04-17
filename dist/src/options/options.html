@@ -4,10 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RSVP Reader — Settings</title>
-  <script type="module" crossorigin src="/assets/options.html-D_W60e1U.js"></script>
+  <script type="module" crossorigin src="/assets/options.html-UcIxCxQp.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
-  <link rel="modulepreload" crossorigin href="/assets/constants-CzKeU0vg.js">
-  <link rel="modulepreload" crossorigin href="/assets/pacing-DoJqeYZh.js">
+  <link rel="modulepreload" crossorigin href="/assets/constants-DXc9c1ek.js">
+  <link rel="modulepreload" crossorigin href="/assets/pacing-C6_k-mBn.js">
+  <link rel="modulepreload" crossorigin href="/assets/feedback-api-ptYw5cJV.js">
+  <link rel="modulepreload" crossorigin href="/assets/local-tts-Da5XKac8.js">
+  <link rel="modulepreload" crossorigin href="/assets/training-Dj31lr1i.js">
   <link rel="stylesheet" crossorigin href="/assets/options.css">
 </head>
 <body>
@@ -21,12 +24,14 @@
       </div>
       <ul class="nav-list">
         <li><a href="#playback"   class="nav-link active" data-section="playback">Playback</a></li>
+        <li><a href="#training"   class="nav-link"         data-section="training">Training</a></li>
         <li><a href="#display"    class="nav-link"         data-section="display">Display</a></li>
         <li><a href="#adhd"       class="nav-link"         data-section="adhd">ADHD features</a></li>
         <li><a href="#supported"  class="nav-link"         data-section="supported">Supported pages</a></li>
         <li><a href="#shortcuts"  class="nav-link"         data-section="shortcuts">Shortcuts</a></li>
         <li><a href="#personalization" class="nav-link"    data-section="personalization">Personalization</a></li>
         <li><a href="#bookmarks"  class="nav-link"         data-section="bookmarks">Bookmarks</a></li>
+        <li><a href="#feedback"   class="nav-link"         data-section="feedback">Feedback</a></li>
         <li><a href="#advanced"   class="nav-link"         data-section="advanced">Advanced</a></li>
       </ul>
       <div class="sidebar-footer">
@@ -70,6 +75,104 @@
             <button class="chip"        data-value="4">4</button>
             <button class="chip"        data-value="5">5</button>
           </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Adaptive chunk size</div>
+              <div class="field-hint">Let the reader go a little shorter or longer than your chosen chunk size when the text calls for it.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="adaptiveChunkSizing"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="readingMode">Reading mode</label>
+          <select id="readingMode" class="select">
+            <option value="balanced">Balanced</option>
+            <option value="dialogue">Dialogue</option>
+            <option value="technical">Technical</option>
+            <option value="story">Story</option>
+          </select>
+          <div class="field-hint">Tune pacing and visual emphasis for different kinds of writing.</div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Read aloud</div>
+              <div class="field-hint">Speak the exact chunk currently on screen and wait for that chunk to finish before advancing.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="readAloudEnabled"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="ttsProvider">Read-aloud engine</label>
+          <select id="ttsProvider" class="select">
+            <option value="chrome">Chrome / system voice</option>
+            <option value="local-neural">Local neural voice</option>
+          </select>
+          <div class="field-hint" id="ttsProviderHint">Chrome TTS stays as the default and fallback.</div>
+        </div>
+
+        <div class="field local-tts-card" id="localTtsCard">
+          <div class="local-tts-card-head">
+            <div>
+              <div class="field-label" id="localTtsModelName">KittenTTS Nano</div>
+              <div class="field-hint" id="localTtsModelDescription">A lightweight CPU model downloaded only if you opt in.</div>
+            </div>
+            <span class="status-pill" id="localTtsStatusPill">Not downloaded</span>
+          </div>
+
+          <div class="local-tts-meta">
+            <span id="localTtsModelSize">~24 MB</span>
+            <span id="localTtsModelLicense">Apache-2.0</span>
+            <span>Runs locally after download</span>
+          </div>
+
+          <div class="local-tts-progress" id="localTtsProgressWrap">
+            <div class="local-tts-progress-track">
+              <div class="local-tts-progress-bar" id="localTtsProgressBar"></div>
+            </div>
+            <div class="field-hint" id="localTtsProgressLabel">0%</div>
+          </div>
+
+          <label class="field-label" for="localTtsVoiceId">Local neural voice</label>
+          <select id="localTtsVoiceId" class="select"></select>
+
+          <div class="local-tts-actions">
+            <button class="sec-btn" id="downloadLocalTtsBtn" type="button">Download model</button>
+            <button class="sec-btn danger" id="deleteLocalTtsBtn" type="button">Remove download</button>
+          </div>
+          <div class="field-hint" id="localTtsStatusText">Local neural TTS is optional. If it is unavailable, read aloud falls back to Chrome TTS.</div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="ttsVoiceName">Voice</label>
+          <select id="ttsVoiceName" class="select">
+            <option value="">System default</option>
+          </select>
+          <div class="field-hint">Used by Chrome TTS and as the backup voice.</div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="ttsRate">Speech rate</label>
+          <div class="slider-row">
+            <input type="range" id="ttsRate" min="0.6" max="2" step="0.1" class="slider">
+            <span class="slider-val" id="ttsRateVal">1.0×</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="segmentationMode">Chunk breakdown</label>
+          <select id="segmentationMode" class="select">
+            <option value="phrase">Phrases</option>
+            <option value="clause">Clauses</option>
+            <option value="meaning">Meaning units</option>
+          </select>
+          <div class="field-hint">Used when adaptive chunk size is on.</div>
         </div>
 
         <div class="field">
@@ -173,6 +276,76 @@
 
       </section>
 
+      <section class="section hidden" id="sec-training">
+        <h2 class="section-title">Training</h2>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Speed trainer</div>
+              <div class="field-hint">Turn on lightweight streaks and session goals without changing the core reader.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="speedTrainerEnabled"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="training-stats" id="trainingStats">
+          <div class="training-stat-card">
+            <span class="training-stat-label">Level</span>
+            <strong class="training-stat-value" id="trainingLevel">1</strong>
+          </div>
+          <div class="training-stat-card">
+            <span class="training-stat-label">Points</span>
+            <strong class="training-stat-value" id="trainingPoints">0</strong>
+          </div>
+          <div class="training-stat-card">
+            <span class="training-stat-label">Streak</span>
+            <strong class="training-stat-value" id="trainingStreak">0 days</strong>
+          </div>
+          <div class="training-stat-card">
+            <span class="training-stat-label">Sessions</span>
+            <strong class="training-stat-value" id="trainingSessions">0</strong>
+          </div>
+          <div class="training-stat-card">
+            <span class="training-stat-label">Best WPM</span>
+            <strong class="training-stat-value" id="trainingBestWpm">0</strong>
+          </div>
+          <div class="training-stat-card">
+            <span class="training-stat-label">Best Focus Run</span>
+            <strong class="training-stat-value" id="trainingFocusWords">0 words</strong>
+          </div>
+          <div class="training-stat-card">
+            <span class="training-stat-label">Active Time</span>
+            <strong class="training-stat-value" id="trainingActiveTime">0:00</strong>
+          </div>
+          <div class="training-stat-card">
+            <span class="training-stat-label">Challenges Cleared</span>
+            <strong class="training-stat-value" id="trainingChallenges">0</strong>
+          </div>
+        </div>
+
+        <div class="training-challenge-card">
+          <div class="training-card-header">
+            <div>
+              <div class="field-label">Next challenge</div>
+              <div class="field-hint">This is the goal the reader will track live while you read.</div>
+            </div>
+            <span class="training-pill" id="trainingReward">+0 pts</span>
+          </div>
+          <div class="training-challenge-title" id="trainingChallengeTitle">Distance Builder</div>
+          <div class="training-challenge-desc" id="trainingChallengeDesc">Read a few hundred words in one focused sitting.</div>
+        </div>
+
+        <div class="training-session-card">
+          <div class="field-label">Last qualifying session</div>
+          <div class="training-session-copy" id="trainingLastSession">No qualifying sessions yet. Read for at least a short focused stretch to start your streak.</div>
+        </div>
+
+        <div class="field">
+          <button class="sec-btn danger" id="resetTraining">Reset training progress</button>
+        </div>
+      </section>
+
 
       <!-- ── Display ── -->
       <section class="section hidden" id="sec-display">
@@ -230,6 +403,16 @@
           <label class="field-label">Preview</label>
           <div class="preview-box" id="previewBox">
             <div class="preview-word" id="previewWord">Reading</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Peripheral vision mode</div>
+              <div class="field-hint">Keep the previous and next chunk faintly visible to reduce hard flashes.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="peripheralVisionMode"><span class="track"><span class="thumb"></span></span></label>
           </div>
         </div>
       </section>
@@ -376,9 +559,70 @@
         </div>
       </section>
 
+      <!-- ── Feedback ── -->
+      <section class="section hidden" id="sec-feedback">
+        <h2 class="section-title">Feedback</h2>
+        
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Show feedback widget in reader</div>
+              <div class="field-hint">Display a small feedback area below the reader to quickly submit thoughts.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="showFeedbackWidget"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Send us your thoughts</div>
+          <div class="about-card" style="display:flex;flex-direction:column;gap:12px;">
+            <p>Feedback is completely anonymous. We do not collect any personal information.</p>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="optionFeedbackType" class="select" style="max-width:200px;">
+                <option value="general">General Feedback</option>
+                <option value="bug">Report a Bug</option>
+                <option value="feature_request">Feature Request (e.g. Website Support)</option>
+              </select>
+              <div class="chip-group" id="optionFeedbackRating">
+                <button class="chip" data-value="positive" title="Happy" style="font-size:18px;padding:4px 8px;">😊</button>
+                <button class="chip active" data-value="neutral" title="Neutral" style="font-size:18px;padding:4px 8px;">😐</button>
+                <button class="chip" data-value="negative" title="Sad" style="font-size:18px;padding:4px 8px;">😞</button>
+              </div>
+            </div>
+            <textarea id="optionFeedbackMsg" rows="3" placeholder="What's on your mind?..." class="select" style="resize:vertical;font-family:inherit;padding:8px;"></textarea>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span id="optionFeedbackStatus" class="field-hint"></span>
+              <button class="sec-btn" id="optionFeedbackBtn">Submit Anonymous Feedback</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ── Advanced ── -->
       <section class="section hidden" id="sec-advanced">
         <h2 class="section-title">Advanced</h2>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Enable cloud syncing</div>
+              <div class="field-hint">Securely sync your settings across devices using Chrome's built-in storage sync.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="syncEnabled"><span class="track"><span class="thumb"></span></span></label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <div>
+              <div class="field-label">Check for updates</div>
+              <div class="field-hint">Occasionally checks GitHub to see if a newer version of RSVP Reader is available.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="enableUpdateChecker"><span class="track"><span class="thumb"></span></span></label>
+            </div>
+            <div id="updateStatusText" class="field-hint" style="margin-top:8px; display:none;"></div>
+            <button class="sec-btn" id="manualUpdateCheckBtn" style="margin-top:8px;">Check Now</button>
+        </div>
 
         <div class="field">
           <div class="field-label">Export / import bundle</div>

@@ -1,6 +1,7 @@
 import type { Bookmark, ExtResponse, Settings } from '../shared/types';
 import { intervalLabel } from '../content/rsvp/pacing';
 import { WPM_MAX, WPM_MIN } from '../shared/constants';
+import { fileNameFromUrl, isLocalTextFileUrl } from '../shared/local-text';
 import { detectSiteMatchFromUrl, favoriteSiteDefinitions, isSiteEnabledForUrl } from '../shared/sites';
 
 const openBtn = document.getElementById('openBtn') as HTMLButtonElement;
@@ -46,7 +47,8 @@ async function init(): Promise<void> {
 }
 
 function populateUI(): void {
-  speedVal.textContent = `${settings.wpm} · ${intervalLabel(settings.wpm, settings.chunkSize)}`;
+  speedVal.textContent =
+    `${settings.wpm} · ${intervalLabel(settings.wpm, settings.chunkSize, settings.segmentationMode, settings.adaptiveChunkSizing)}`;
   chunkVal.textContent = String(settings.chunkSize);
   togBionic.checked = settings.adhdBionic;
   togFocal.checked = settings.adhdFocalPoint;
@@ -56,6 +58,12 @@ function populateUI(): void {
 
 async function checkPageContent(): Promise<void> {
   if (!activeTabId) return;
+  const isLocalTextFile = isLocalTextFileUrl(pageUrl);
+  if (isLocalTextFile) {
+    await checkLocalTextFilePage();
+    return;
+  }
+
   const currentSiteMatch = detectSiteMatchFromUrl(pageUrl);
   if (currentSiteMatch && !isSiteEnabledForUrl(pageUrl, settings.enabledSites, settings.enabledSiteHosts)) {
     statusBanner.className = 'status-banner warn';
@@ -77,7 +85,15 @@ async function checkPageContent(): Promise<void> {
           '.chapter-content, .chp_raw, #chp_raw, .cha-words, .part-content, #storytext, .userstuff, .bbWrapper, .wp-block-post-content, .entry-content, .entry-inner, .entrytext, .post-content, .post-body, .storycontent, #chr-content, .chr-c, .r-fulltext, .chapter-body, .reading-content, .reader-content, .prose',
         ));
         const genericRoot = document.querySelector('article, main, [role="main"], .content, #content');
-        const textLength = ((genericRoot as HTMLElement | null)?.innerText ?? document.body.innerText).length;
+        const plainTextRoot = document.querySelector('body > pre');
+        const fallbackText = (
+          plainTextRoot?.textContent ??
+          (genericRoot as HTMLElement | null)?.innerText ??
+          document.body.innerText ??
+          document.body.textContent ??
+          ''
+        );
+        const textLength = fallbackText.trim().length;
         return {
           hasKnownRoot,
           textLength,
@@ -87,6 +103,7 @@ async function checkPageContent(): Promise<void> {
     });
 
     const pageInfo = result ?? { hasKnownRoot: false, textLength: 0, title: '' };
+
     if (pageInfo.hasKnownRoot) {
       statusBanner.className = 'status-banner ok';
       statusText.textContent = `Supported site ready: ${pageInfo.title}`;
@@ -106,6 +123,23 @@ async function checkPageContent(): Promise<void> {
   } catch {
     statusBanner.className = 'status-banner warn';
     statusText.textContent = 'Cannot access this page';
+  }
+}
+
+async function checkLocalTextFilePage(): Promise<void> {
+  if (!activeTabId) return;
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: activeTabId },
+      func: () => ({ title: document.title.slice(0, 120) }),
+    });
+    statusBanner.className = 'status-banner ok';
+    statusText.textContent = `Local text file ready: ${result?.title?.trim() || fileNameFromUrl(pageUrl)}`;
+    openBtn.disabled = false;
+  } catch {
+    statusBanner.className = 'status-banner warn';
+    statusText.textContent = 'Enable "Allow access to file URLs" in the extension details to read local .txt files directly';
+    openBtn.disabled = true;
   }
 }
 
@@ -139,7 +173,12 @@ async function patch(delta: Partial<Settings>): Promise<void> {
 
 openBtn.addEventListener('click', async () => {
   if (!activeTabId) return;
-  await chrome.runtime.sendMessage({ type: 'OPEN_READER_ON_TAB', tabId: activeTabId });
+  const response = await chrome.runtime.sendMessage({ type: 'OPEN_READER_ON_TAB', tabId: activeTabId }) as ExtResponse<null>;
+  if (!response.ok) {
+    statusBanner.className = 'status-banner warn';
+    statusText.textContent = response.error;
+    return;
+  }
   window.close();
 });
 

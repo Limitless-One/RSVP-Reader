@@ -1,5 +1,5 @@
 import { PACING, WARMUP_DURATION_MS, WARMUP_START_RATIO } from '../../shared/constants';
-import type { Chunk, PunctuationPauses } from '../../shared/types';
+import type { Chunk, SegmentationMode, Settings } from '../../shared/types';
 
 // ─── Interval calculator ──────────────────────────────────────────────────────
 
@@ -20,51 +20,56 @@ export function wpmToInterval(wpm: number, chunkSize: number): number {
 export function chunkDelay(
   chunk: Chunk,
   baseIntervalMs: number,
-  adaptive: boolean,
-  pauses?: PunctuationPauses,
+  settings: Pick<Settings, 'adaptivePacing' | 'punctuationPauses' | 'readingMode'>,
 ): number {
-  if (!adaptive) return baseIntervalMs;
+  let delay = baseIntervalMs;
 
-  const tokens = chunk.tokens;
-  const wordTokens = tokens.filter(t => t.type === 'word' || t.type === 'number');
-  if (wordTokens.length === 0) return baseIntervalMs;
+  if (settings.adaptivePacing) {
+    const tokens = chunk.tokens;
+    const wordTokens = tokens.filter(t => t.type === 'word' || t.type === 'number');
+    if (wordTokens.length === 0) return baseIntervalMs;
 
-  // ── Punctuation multiplier (driven by the last token's pause type) ────────
-  const lastTok = tokens[tokens.length - 1];
-  let punctMult = 1.0;
-  switch (lastTok.punctuationAfter) {
-    case 'sentence':  punctMult = pauses?.sentenceEnd ?? PACING.SENTENCE_END; break;
-    case 'ellipsis':  punctMult = pauses?.ellipsis     ?? PACING.ELLIPSIS;     break;
-    case 'dash':      punctMult = pauses?.dash          ?? PACING.DASH;         break;
-    case 'clause':    punctMult = pauses?.clause        ?? PACING.CLAUSE;       break;
+    const lastTok = tokens[tokens.length - 1];
+    let punctMult = 1.0;
+    switch (lastTok.punctuationAfter) {
+      case 'sentence':  punctMult = settings.punctuationPauses.sentenceEnd ?? PACING.SENTENCE_END; break;
+      case 'ellipsis':  punctMult = settings.punctuationPauses.ellipsis    ?? PACING.ELLIPSIS;     break;
+      case 'dash':      punctMult = settings.punctuationPauses.dash        ?? PACING.DASH;         break;
+      case 'clause':    punctMult = settings.punctuationPauses.clause      ?? PACING.CLAUSE;       break;
+    }
+
+    let wordMult = 1.0;
+    const stopRatio = wordTokens.filter(t => t.isStopWord).length / wordTokens.length;
+    const hasProper = wordTokens.some(t => t.isProperNoun);
+    const longestWord = wordTokens.reduce((max, token) => Math.max(max, token.charCount), 0);
+    const shortestWord = wordTokens.reduce((min, token) => Math.min(min, token.charCount), Infinity);
+
+    if (stopRatio >= PACING.STOP_WORD_RATIO_THRESHOLD)
+      wordMult *= PACING.STOP_WORD_SPEED;
+
+    if (chunk.containsNumber) wordMult *= PACING.NUMBER;
+    if (hasProper) wordMult *= PACING.PROPER_NOUN;
+
+    if (longestWord > PACING.LONG_WORD_BASE)
+      wordMult *= 1.0 + (longestWord - PACING.LONG_WORD_BASE) * PACING.LONG_WORD_PER_CHAR;
+    else if (shortestWord <= PACING.SHORT_WORD_THRESHOLD)
+      wordMult *= PACING.SHORT_WORD_SPEED;
+
+    if (settings.readingMode === 'story') {
+      punctMult = 1 + (punctMult - 1) * 0.78;
+    } else if (settings.readingMode === 'dialogue' && chunk.isDialogue) {
+      punctMult = 1 + (punctMult - 1) * 0.7;
+    }
+
+    const combined = punctMult > 1.0
+      ? punctMult * Math.max(1.0, wordMult)
+      : punctMult * wordMult;
+    delay = baseIntervalMs * combined;
   }
 
-  // ── Word-composition multiplier ───────────────────────────────────────────
-  let wordMult = 1.0;
-  const stopRatio = wordTokens.filter(t => t.isStopWord).length / wordTokens.length;
-  const hasNumber = wordTokens.some(t => t.type === 'number');
-  const hasProper = wordTokens.some(t => t.isProperNoun);
-  const longestWord = wordTokens.reduce((max, token) => Math.max(max, token.charCount), 0);
-  const shortestWord = wordTokens.reduce((min, token) => Math.min(min, token.charCount), Infinity);
+  delay *= readingModeMultiplier(chunk, settings.readingMode);
 
-  if (stopRatio >= PACING.STOP_WORD_RATIO_THRESHOLD)
-    wordMult *= PACING.STOP_WORD_SPEED;
-
-  if (hasNumber) wordMult *= PACING.NUMBER;
-  if (hasProper) wordMult *= PACING.PROPER_NOUN;
-
-  if (longestWord > PACING.LONG_WORD_BASE)
-    wordMult *= 1.0 + (longestWord - PACING.LONG_WORD_BASE) * PACING.LONG_WORD_PER_CHAR;
-  else if (shortestWord <= PACING.SHORT_WORD_THRESHOLD)
-    wordMult *= PACING.SHORT_WORD_SPEED;
-
-  // Punctuation dominates; word composition is secondary
-  const combined = punctMult > 1.0
-    ? punctMult * Math.max(1.0, wordMult)   // don't let stop-word speedup cancel a pause
-    : punctMult * wordMult;
-
-  // Clamp to a sane range: 40 ms minimum, 3× base maximum
-  return Math.max(40, Math.min(baseIntervalMs * 3, baseIntervalMs * combined));
+  return Math.max(40, Math.min(baseIntervalMs * 3, delay));
 }
 
 // ─── Warmup ramp ─────────────────────────────────────────────────────────────
@@ -83,13 +88,9 @@ export function warmupMultiplier(activeElapsedMs: number, enabled: boolean): num
 
 /** Returns a human-readable string like "~3 min remaining" */
 export function estimateRemaining(
-  currentIdx: number,
-  totalChunks: number,
+  wordsLeft: number,
   wpm: number,
-  chunkSize: number,
 ): string {
-  const chunksLeft = Math.max(0, totalChunks - currentIdx);
-  const wordsLeft = chunksLeft * chunkSize;
   const minutesLeft = wordsLeft / wpm;
 
   if (minutesLeft < 1) return '< 1 min left';
@@ -99,7 +100,53 @@ export function estimateRemaining(
   return `~${h}h ${m}m left`;
 }
 
-export function intervalLabel(wpm: number, chunkSize: number): string {
+export function playbackModeLabel(
+  segmentationMode: SegmentationMode,
+): string {
+  switch (segmentationMode) {
+    case 'phrase':
+      return 'phrase chunks';
+    case 'clause':
+      return 'clause chunks';
+    case 'meaning':
+      return 'meaning units';
+    default:
+      return 'fixed chunks';
+  }
+}
+
+export function intervalLabel(
+  wpm: number,
+  chunkSize: number,
+  segmentationMode: SegmentationMode = 'fixed',
+  adaptiveChunkSizing = segmentationMode !== 'fixed',
+): string {
+  const effectiveSegmentationMode = adaptiveChunkSizing && segmentationMode === 'fixed'
+    ? 'phrase'
+    : segmentationMode;
+  if (adaptiveChunkSizing && effectiveSegmentationMode !== 'fixed') {
+    return playbackModeLabel(effectiveSegmentationMode);
+  }
   const intervalMs = Math.round(wpmToInterval(wpm, chunkSize));
   return `${intervalMs} ms/chunk`;
+}
+
+function readingModeMultiplier(
+  chunk: Chunk,
+  readingMode: Settings['readingMode'],
+): number {
+  switch (readingMode) {
+    case 'dialogue':
+      return chunk.isDialogue ? 0.88 : 0.96;
+    case 'technical': {
+      let multiplier = 1.08;
+      if (chunk.containsNumber) multiplier *= 1.12;
+      if (chunk.isCodeLike) multiplier *= 1.14;
+      return multiplier;
+    }
+    case 'story':
+      return chunk.isDialogue ? 0.95 : 1.02;
+    default:
+      return 1;
+  }
 }

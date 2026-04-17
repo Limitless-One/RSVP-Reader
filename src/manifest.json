@@ -32,6 +32,10 @@
     "type": "module"
   },
 
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+
   "content_scripts": [
     {
       "matches": [
@@ -60,7 +64,8 @@
         "*://archiveofourown.org/works/*",
         "*://forums.sufficientvelocity.com/threads/*",
         "*://forums.spacebattles.com/threads/*",
-        "*://*.wordpress.com/*/*/*/*"
+        "*://*.wordpress.com/*/*/*/*",
+        "file:///*"
       ],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle",
@@ -71,7 +76,19 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "tts",
+    "offscreen",
+    "alarms"
+  ],
+
+  "optional_host_permissions": [
+    "https://huggingface.co/*",
+    "https://*.huggingface.co/*",
+    "https://raw.githubusercontent.com/*",
+    "https://*.xethub.hf.co/*",
+    "https://*.hf.co/*",
+    "https://cdn.jsdelivr.net/*"
   ],
 
   "commands": {

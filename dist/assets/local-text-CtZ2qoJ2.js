@@ -1,0 +1,4 @@
+const s="Local file";function u(e,t){const n=f(t),r=[];let l=0;return n.forEach((o,i)=>{const a=l,c=a+o.length;r.push({id:`local-block-${i+1}`,text:o,startOffset:a,endOffset:c}),l=c+2}),{title:p(e),text:n.join(`
+
+`),site:s,prevChapterUrl:null,nextChapterUrl:null,blocks:r}}function p(e){const t=e.trim();return t.replace(/\.txt$/i,"")||t||"Untitled text"}function m(e){try{const t=new URL(e);return decodeURIComponent(t.pathname.split("/").filter(Boolean).pop()??"")||"Untitled text"}catch{return"Untitled text"}}function h(e){try{const t=new URL(e);return t.protocol==="file:"&&/\.txt$/i.test(t.pathname)}catch{return!1}}function f(e){return e.replace(/^\uFEFF/,"").replace(/\r\n?/g,`
+`).split(/\n\s*\n+/).map(t=>t.replace(/[ \t]*\n[ \t]*/g," ").replace(/[ \t]+/g," ").trim()).filter(Boolean)}export{u as c,m as f,h as i};

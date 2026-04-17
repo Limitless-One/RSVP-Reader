@@ -1,11 +1,33 @@
 import { ABBREVIATIONS } from '../../shared/constants';
-import type { Chunk, ParsedBlock, PunctuationType, Token, TokenType } from '../../shared/types';
+import type {
+  Chunk,
+  ParsedBlock,
+  PunctuationType,
+  ReadingMode,
+  SegmentationMode,
+  Token,
+  TokenType,
+} from '../../shared/types';
 import { STOP_WORDS } from '../../shared/stopwords';
 
 const WORD_RE = /[\p{L}\p{M}]+(?:['\u2019][\p{L}\p{M}]+)*(?:-[\p{L}\p{M}]+)*/uy;
 const NUMBER_RE = /[\p{Nd}][\p{Nd},.'’]*[\p{Nd}]|[\p{Nd}]/uy;
 const CLOSING_PUNCT_RE = /^[,.;:!?)}\]%"'”’]+$/;
 const OPENING_PUNCT_RE = /^[(\[{“‘'"]+$/;
+const SOFT_BOUNDARY_WORDS = new Set([
+  'and', 'but', 'or', 'so', 'yet', 'for', 'nor',
+  'because', 'although', 'though', 'while', 'when', 'where', 'which', 'that',
+  'who', 'whom', 'whose', 'after', 'before', 'until', 'unless', 'since',
+  'with', 'without', 'through', 'across', 'between', 'beneath', 'inside',
+  'outside', 'toward', 'towards', 'against', 'instead', 'despite', 'beyond',
+  'into', 'onto', 'over', 'under', 'around', 'from',
+]);
+
+interface ChunkingProfile {
+  minWords: number;
+  targetWords: number;
+  maxWords: number;
+}
 
 export function bionicHtml(word: string): string {
   if (word.length <= 1) return `<b>${word}</b>`;
@@ -18,12 +40,19 @@ export function buildChunks(
   blocks: ParsedBlock[],
   chunkSize: number,
   sentenceMode: boolean,
+  segmentationMode: SegmentationMode = 'fixed',
+  readingMode: ReadingMode = 'balanced',
+  adaptiveChunkSizing = segmentationMode !== 'fixed',
 ): Chunk[] {
   const tokens = tokenize(text);
   const wordTokens = tokens.filter(token => token.type === 'word' || token.type === 'number');
   if (wordTokens.length === 0) return [];
 
   const chunks: Chunk[] = [];
+  const effectiveSegmentationMode = adaptiveChunkSizing && segmentationMode === 'fixed'
+    ? 'phrase'
+    : segmentationMode;
+  const profile = buildChunkingProfile(chunkSize, effectiveSegmentationMode, readingMode);
   let chunkStart = 0;
   let wordsInChunk = 0;
   let firstWordIndex = 0;
@@ -40,13 +69,16 @@ export function buildChunks(
     wordsInChunk++;
     const isSentenceEnd =
       token.punctuationAfter === 'sentence' || token.punctuationAfter === 'ellipsis';
-    const reachedChunkSize = wordsInChunk >= chunkSize;
-    const reachedSentenceBoundary = sentenceMode && isSentenceEnd;
-    const reachedSentenceFallback = sentenceMode && wordsInChunk >= Math.max(chunkSize * 4, 14);
-    const shouldCloseChunk =
-      (!sentenceMode && reachedChunkSize) ||
-      reachedSentenceBoundary ||
-      reachedSentenceFallback;
+
+    let shouldCloseChunk = false;
+    if (sentenceMode) {
+      const fallbackLimit = Math.max(profile.maxWords + 2, Math.max(chunkSize, 1) * 4, 14);
+      shouldCloseChunk = isSentenceEnd || wordsInChunk >= fallbackLimit;
+    } else if (!adaptiveChunkSizing) {
+      shouldCloseChunk = wordsInChunk >= chunkSize;
+    } else {
+      shouldCloseChunk = shouldCloseSemanticChunk(tokens, index, wordsInChunk, profile, readingMode);
+    }
 
     if (!shouldCloseChunk) continue;
 
@@ -62,7 +94,11 @@ export function buildChunks(
   return chunks;
 }
 
-export function renderChunkHtml(chunk: Chunk, bionic: boolean): string {
+export function renderChunkHtml(
+  chunk: Chunk,
+  bionic: boolean,
+  readingMode: ReadingMode = 'balanced',
+): string {
   let html = '';
 
   chunk.tokens.forEach((token, index) => {
@@ -70,15 +106,38 @@ export function renderChunkHtml(chunk: Chunk, bionic: boolean): string {
       html += ' ';
     }
 
-    if (token.type === 'word' && bionic) {
-      html += bionicHtml(escapeHtml(token.text));
-      return;
-    }
-
-    html += escapeHtml(token.text);
+    html += renderTokenHtml(token, chunk, bionic, readingMode);
   });
 
   return html;
+}
+
+function renderTokenHtml(
+  token: Token,
+  chunk: Chunk,
+  bionic: boolean,
+  readingMode: ReadingMode,
+): string {
+  const content =
+    token.type === 'word' && bionic
+      ? bionicHtml(escapeHtml(token.text))
+      : escapeHtml(token.text);
+  const classes: string[] = [];
+
+  if (readingMode === 'dialogue' && chunk.isDialogue && token.type === 'punctuation' && /["“”'‘’]/.test(token.text)) {
+    classes.push('rsvp-quote-token');
+  }
+
+  if (readingMode === 'technical' && token.type === 'number') {
+    classes.push('rsvp-number-token');
+  }
+
+  if (readingMode === 'technical' && chunk.isCodeLike && tokenLooksCodeLike(token)) {
+    classes.push('rsvp-code-token');
+  }
+
+  if (classes.length === 0) return content;
+  return `<span class="${classes.join(' ')}">${content}</span>`;
 }
 
 function tokenize(text: string): Token[] {
@@ -190,6 +249,14 @@ function findPreviousWordToken(tokens: Token[]): Token | null {
   return null;
 }
 
+function findNextWordToken(tokens: Token[], startIndex: number): Token | null {
+  for (let index = startIndex; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (token.type === 'word' || token.type === 'number') return token;
+  }
+  return null;
+}
+
 function pauseWeight(punctuation: PunctuationType): number {
   return { none: 0, clause: 1, sentence: 2, dash: 3, ellipsis: 3 }[punctuation];
 }
@@ -216,6 +283,82 @@ function isSentenceInitial(tokens: Token[], index: number): boolean {
     return false;
   }
   return true;
+}
+
+function buildChunkingProfile(
+  chunkSize: number,
+  segmentationMode: SegmentationMode,
+  readingMode: ReadingMode,
+): ChunkingProfile {
+  const base = Math.max(1, chunkSize);
+  if (segmentationMode === 'fixed') {
+    return { minWords: base, targetWords: base, maxWords: base };
+  }
+
+  let targetWords = base + (segmentationMode === 'phrase' ? 1 : 2);
+  let spread = segmentationMode === 'phrase' ? 1 : 2;
+
+  if (readingMode === 'dialogue' || readingMode === 'technical') {
+    targetWords = Math.max(2, targetWords - 1);
+  } else if (readingMode === 'story') {
+    targetWords += 1;
+    spread += 1;
+  }
+
+  const minWords = Math.max(1, targetWords - spread);
+  const maxWords = Math.max(targetWords + 1, targetWords + spread);
+  return { minWords, targetWords, maxWords };
+}
+
+function shouldCloseSemanticChunk(
+  tokens: Token[],
+  index: number,
+  wordsInChunk: number,
+  profile: ChunkingProfile,
+  readingMode: ReadingMode,
+): boolean {
+  const token = tokens[index];
+  const nextWord = findNextWordToken(tokens, index + 1);
+  const nextWordText = nextWord?.text.toLowerCase() ?? '';
+
+  if (wordsInChunk >= profile.maxWords) return true;
+
+  if (token.punctuationAfter === 'sentence' || token.punctuationAfter === 'ellipsis') {
+    return true;
+  }
+
+  if (token.punctuationAfter === 'clause' && wordsInChunk >= profile.minWords) {
+    return true;
+  }
+
+  if (token.punctuationAfter === 'dash' && wordsInChunk >= Math.max(1, profile.minWords - 1)) {
+    return true;
+  }
+
+  if (wordsInChunk >= profile.targetWords && nextWord && SOFT_BOUNDARY_WORDS.has(nextWordText)) {
+    return true;
+  }
+
+  if (readingMode === 'dialogue' && wordsInChunk >= profile.minWords && endsWithClosingQuote(tokens, index)) {
+    return true;
+  }
+
+  if (readingMode === 'technical' && wordsInChunk >= profile.minWords && tokenLooksCodeLike(token)) {
+    return true;
+  }
+
+  return false;
+}
+
+function endsWithClosingQuote(tokens: Token[], index: number): boolean {
+  const nextToken = tokens[index + 1];
+  return Boolean(nextToken?.type === 'punctuation' && /["”’']/.test(nextToken.text));
+}
+
+function tokenLooksCodeLike(token: Token): boolean {
+  if (token.type === 'number') return true;
+  if (token.type === 'punctuation') return /[<>{}\[\]=_/\\`~:+*#|]/.test(token.text);
+  return /[a-z][A-Z]|[A-Za-z]\d|\d[A-Za-z]|[_/\\]/.test(token.text);
 }
 
 function findChunkStart(tokens: Token[], index: number): number {
@@ -252,11 +395,14 @@ function makeChunk(
   const wordTokens = chunkTokens.filter(token => token.type === 'word' || token.type === 'number');
   const startOffset = chunkTokens[0]?.start ?? 0;
   const endOffset = chunkTokens[chunkTokens.length - 1]?.end ?? startOffset;
-  const displayText = normalizeDisplayText(text.slice(startOffset, endOffset));
+  const rawText = text.slice(startOffset, endOffset);
+  const displayText = normalizeDisplayText(rawText);
   const wordEndIndex = (wordTokens[wordTokens.length - 1]?.wordIndex ?? firstWordIndex - 1) + 1;
+  const containsNumber = wordTokens.some(token => token.type === 'number');
+
   return {
     tokens: chunkTokens,
-    rawText: text.slice(startOffset, endOffset),
+    rawText,
     displayText,
     index: chunkIndex,
     isSentenceEnd: wordTokens.some(token =>
@@ -267,7 +413,9 @@ function makeChunk(
     wordEndIndex,
     wordCount: wordEndIndex - firstWordIndex,
     blockIds: blockIdsForRange(blocks, startOffset, endOffset),
-    isDialogue: /^["“'‘-]/.test(displayText.trim()),
+    isDialogue: looksLikeDialogue(displayText, chunkTokens),
+    containsNumber,
+    isCodeLike: looksCodeLike(rawText, chunkTokens),
   };
 }
 
@@ -276,6 +424,20 @@ function normalizeDisplayText(text: string): string {
     .replace(/\s+/g, ' ')
     .replace(/ ([,.;:!?])/g, '$1')
     .trim();
+}
+
+function looksLikeDialogue(text: string, tokens: Token[]): boolean {
+  const trimmed = text.trimStart();
+  if (/^["“'‘-]/.test(trimmed)) return true;
+  return Boolean(tokens[0]?.type === 'punctuation' && /["“'‘]/.test(tokens[0].text));
+}
+
+function looksCodeLike(rawText: string, tokens: Token[]): boolean {
+  if (/::|=>|\b[A-Za-z]+(?:[._][A-Za-z0-9]+)+/.test(rawText)) return true;
+  if (/[<>{}\[\]=_/\\`~]/.test(rawText)) return true;
+
+  const codeishTokens = tokens.filter(tokenLooksCodeLike).length;
+  return codeishTokens >= 2;
 }
 
 function blockIdsForRange(blocks: ParsedBlock[], startOffset: number, endOffset: number): string[] {

@@ -15,10 +15,19 @@ export const DEFAULT_PUNCTUATION_PAUSES: PunctuationPauses = {
 
 export const DEFAULT_SETTINGS: Settings = {
   chunkSize: 1,
+  adaptiveChunkSizing: true,
   wpm: 300,
   warmupRamp: true,
   wpmStep: 10,
   skipBackSeconds: 5,
+  readingMode: 'balanced',
+  segmentationMode: 'phrase',
+  readAloudEnabled: false,
+  ttsProvider: 'chrome',
+  ttsVoiceName: '',
+  ttsRate: 1,
+  localTtsModelId: 'kitten-tts-nano-v0.8-int8',
+  localTtsVoiceId: 'Jasper',
 
   font: 'Georgia, serif',
   fontSize: 48,
@@ -29,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   showStats: true,
   highlightParagraph: true,
+  peripheralVisionMode: false,
 
   adhdBionic: false,
   adhdFocalPoint: true,
@@ -44,6 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enabledSiteHosts: DEFAULT_ENABLED_SITE_HOSTS,
   favoriteSites: DEFAULT_FAVORITE_SITES,
   preferTranslatedText: true,
+  speedTrainerEnabled: false,
 
   personalizationEnabled: false,
   personalizationConsentGiven: false,
@@ -61,6 +72,10 @@ export const DEFAULT_SETTINGS: Settings = {
     forwardSentence: 'shift+ArrowRight',
     skipBack: 'Backspace',
   },
+  
+  syncEnabled: true,
+  enableUpdateChecker: true,
+  showFeedbackWidget: true,
 };
 
 // ─── Built-in themes ─────────────────────────────────────────────────────────

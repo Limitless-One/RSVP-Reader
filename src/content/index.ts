@@ -16,6 +16,13 @@ declare global {
   }
 }
 
+type ContentMessage =
+  | ExtMessage
+  | { type: 'PING' }
+  | { type: 'OPEN_OVERLAY' }
+  | { type: 'CLOSE_OVERLAY' }
+  | { type: 'SETTINGS_UPDATED' };
+
 let overlay: RSVPOverlay | null = null;
 let settings: Settings | null = null;
 let observer: MutationObserver | null = null;
@@ -35,7 +42,7 @@ async function init(): Promise<void> {
   activeChapterSignature = signatureForChapter(activeChapter);
   activeChapterUrl = location.href;
 
-  chrome.runtime.onMessage.addListener((msg: { type: string }, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((msg: ContentMessage, _sender, sendResponse) => {
     if (msg.type === 'PING') {
       sendResponse({ ok: true });
       return false;
@@ -71,6 +78,12 @@ async function init(): Promise<void> {
           sendResponse({ ok: false });
         });
       return true;
+    }
+
+    if (msg.type === 'TTS_EVENT') {
+      overlay?.handleTtsEvent(msg);
+      sendResponse({ ok: true });
+      return false;
     }
 
     return false;

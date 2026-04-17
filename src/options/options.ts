@@ -1,13 +1,34 @@
 import { intervalLabel } from '../content/rsvp/pacing';
+import { speechRateLabel } from '../content/rsvp/read-aloud';
 import { READABLE_FONTS, THEMES } from '../shared/constants';
+import {
+  DEFAULT_LOCAL_TTS_MODEL_ID,
+  DEFAULT_LOCAL_TTS_VOICE_ID,
+  LOCAL_TTS_DOWNLOAD_ORIGINS,
+  formatModelSize,
+  getLocalTtsModelInfo,
+  localTtsProgressPercent,
+} from '../shared/local-tts';
 import { resolveSiteHomeUrl, SUPPORTED_SITES } from '../shared/sites';
+import {
+  buildTrainingChallenge,
+  formatDurationShort,
+  getTrainingLevel,
+  normalizeTrainingProgress,
+} from '../shared/training';
+import { submitFeedback } from '../shared/feedback-api';
 import type {
   Bookmark,
   ExportBundle,
+  ExtMessage,
   ExtResponse,
+  LocalTtsModelStatus,
   PersonalizationEvent,
   PersonalizationModel,
+  ReadingTrainingProgress,
   Settings,
+  TtsVoiceOption,
+  FeedbackPayload,
 } from '../shared/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -16,6 +37,7 @@ const $$ = <T extends HTMLElement>(selector: string, root: ParentNode = document
 
 let settings: Settings;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let localTtsStatus: LocalTtsModelStatus | null = null;
 
 init().catch(console.error);
 
@@ -24,11 +46,13 @@ async function init(): Promise<void> {
 
   initNav();
   initPlayback();
+  await initTraining();
   initDisplay();
   initAdhd();
   initSupportedPages();
   initShortcuts();
-  initPersonalization();
+  void initPersonalization();
+  initFeedback();
   initAdvanced();
 
   $('resetBtn').addEventListener('click', async () => {
@@ -80,6 +104,9 @@ function initNav(): void {
       if (section === 'personalization') {
         void refreshPersonalization();
       }
+      if (section === 'training') {
+        void refreshTraining();
+      }
     });
   });
 
@@ -87,6 +114,42 @@ function initNav(): void {
   if (hash) {
     document.querySelector<HTMLAnchorElement>(`.nav-link[data-section="${hash}"]`)?.click();
   }
+}
+
+async function initTraining(): Promise<void> {
+  bindToggle('speedTrainerEnabled', value => void save({ speedTrainerEnabled: value }));
+
+  $('resetTraining').addEventListener('click', async () => {
+    if (!confirm('Reset all training streaks, levels, and challenge progress?')) return;
+    await sendMsg({ type: 'RESET_TRAINING_PROGRESS' });
+    await refreshTraining();
+  });
+
+  await refreshTraining();
+}
+
+async function refreshTraining(): Promise<void> {
+  const progress = normalizeTrainingProgress(
+    await sendMsg<ReadingTrainingProgress>({ type: 'GET_TRAINING_PROGRESS' }),
+  );
+  const level = getTrainingLevel(progress);
+  const challenge = buildTrainingChallenge(progress);
+  const lastSession = progress.lastSessionSummary;
+
+  $('trainingLevel').textContent = String(level);
+  $('trainingPoints').textContent = progress.totalPoints.toLocaleString();
+  $('trainingStreak').textContent = `${progress.streakDays.toLocaleString()} ${progress.streakDays === 1 ? 'day' : 'days'}`;
+  $('trainingSessions').textContent = progress.sessionsCompleted.toLocaleString();
+  $('trainingBestWpm').textContent = progress.bestEffectiveWpm.toLocaleString();
+  $('trainingFocusWords').textContent = `${progress.bestFocusWords.toLocaleString()} words`;
+  $('trainingActiveTime').textContent = formatDurationShort(progress.totalActiveTimeMs);
+  $('trainingChallenges').textContent = progress.completedChallenges.toLocaleString();
+  $('trainingChallengeTitle').textContent = challenge.title;
+  $('trainingChallengeDesc').textContent = challenge.description;
+  $('trainingReward').textContent = `+${challenge.points + 1} pts`;
+  $('trainingLastSession').textContent = lastSession
+    ? formatLastTrainingSession(lastSession)
+    : 'No qualifying sessions yet. Read for at least a short focused stretch to start your streak.';
 }
 
 function initPlayback(): void {
@@ -119,6 +182,150 @@ function initPlayback(): void {
     });
   });
 
+  const adaptiveChunkSizing = $<HTMLInputElement>('adaptiveChunkSizing');
+  adaptiveChunkSizing.checked = settings.adaptiveChunkSizing;
+  adaptiveChunkSizing.addEventListener('change', () => {
+    settings = {
+      ...settings,
+      adaptiveChunkSizing: adaptiveChunkSizing.checked,
+      segmentationMode: adaptiveChunkSizing.checked
+        ? effectiveSegmentationMode(settings.segmentationMode)
+        : settings.segmentationMode,
+    };
+    segmentationMode.value = effectiveSegmentationMode(settings.segmentationMode);
+    updateSegmentationState();
+    syncWpmLabel();
+    void save({
+      adaptiveChunkSizing: adaptiveChunkSizing.checked,
+      segmentationMode: settings.segmentationMode,
+    });
+  });
+
+  const readingMode = $<HTMLSelectElement>('readingMode');
+  readingMode.value = settings.readingMode;
+  readingMode.addEventListener('change', () => {
+    void save({ readingMode: readingMode.value as Settings['readingMode'] });
+  });
+
+  const readAloudEnabled = $<HTMLInputElement>('readAloudEnabled');
+  const ttsProvider = $<HTMLSelectElement>('ttsProvider');
+  const ttsProviderHint = $('ttsProviderHint');
+  const ttsVoiceName = $<HTMLSelectElement>('ttsVoiceName');
+  const ttsRate = $<HTMLInputElement>('ttsRate');
+  const ttsRateVal = $('ttsRateVal');
+  const localTtsCard = $('localTtsCard');
+  const localTtsModelName = $('localTtsModelName');
+  const localTtsModelDescription = $('localTtsModelDescription');
+  const localTtsStatusPill = $('localTtsStatusPill');
+  const localTtsModelSize = $('localTtsModelSize');
+  const localTtsModelLicense = $('localTtsModelLicense');
+  const localTtsProgressWrap = $('localTtsProgressWrap');
+  const localTtsProgressBar = $('localTtsProgressBar');
+  const localTtsProgressLabel = $('localTtsProgressLabel');
+  const localTtsVoiceId = $<HTMLSelectElement>('localTtsVoiceId');
+  const downloadLocalTtsBtn = $<HTMLButtonElement>('downloadLocalTtsBtn');
+  const deleteLocalTtsBtn = $<HTMLButtonElement>('deleteLocalTtsBtn');
+  const localTtsStatusText = $('localTtsStatusText');
+  const localModel = getLocalTtsModelInfo(settings.localTtsModelId || DEFAULT_LOCAL_TTS_MODEL_ID);
+  readAloudEnabled.checked = settings.readAloudEnabled;
+  ttsProvider.value = settings.ttsProvider;
+  ttsRate.value = String(settings.ttsRate);
+  ttsRateVal.textContent = speechRateLabel(settings.ttsRate);
+  localTtsModelName.textContent = localModel.name;
+  localTtsModelDescription.textContent = localModel.description;
+  localTtsModelSize.textContent = `~${formatModelSize(localModel.sizeBytes)}`;
+  localTtsModelLicense.textContent = localModel.license;
+  localTtsVoiceId.innerHTML = '';
+  localModel.voices.forEach(voice => {
+    const option = document.createElement('option');
+    option.value = voice.id;
+    option.textContent = `${voice.name} · ${voice.description}`;
+    option.selected = voice.id === (settings.localTtsVoiceId || DEFAULT_LOCAL_TTS_VOICE_ID);
+    localTtsVoiceId.appendChild(option);
+  });
+  localTtsVoiceId.value = settings.localTtsVoiceId || DEFAULT_LOCAL_TTS_VOICE_ID;
+  readAloudEnabled.addEventListener('change', () => {
+    settings = { ...settings, readAloudEnabled: readAloudEnabled.checked };
+    updateReadAloudState();
+    void save({ readAloudEnabled: readAloudEnabled.checked });
+  });
+  ttsProvider.addEventListener('change', () => {
+    settings = { ...settings, ttsProvider: ttsProvider.value as Settings['ttsProvider'] };
+    updateReadAloudState();
+    void save({ ttsProvider: settings.ttsProvider });
+  });
+  ttsVoiceName.addEventListener('change', () => {
+    void save({ ttsVoiceName: ttsVoiceName.value });
+  });
+  localTtsVoiceId.addEventListener('change', () => {
+    settings = { ...settings, localTtsVoiceId: localTtsVoiceId.value };
+    void save({ localTtsVoiceId: localTtsVoiceId.value });
+  });
+  ttsRate.addEventListener('input', () => {
+    const nextRate = Number(ttsRate.value);
+    ttsRateVal.textContent = speechRateLabel(nextRate);
+    void save({ ttsRate: nextRate });
+  });
+  downloadLocalTtsBtn.addEventListener('click', async () => {
+    downloadLocalTtsBtn.disabled = true;
+    try {
+      const canDownload = await ensureLocalTtsDownloadPermission();
+      if (!canDownload) throw new Error('Download permission was not granted.');
+      localTtsStatus = {
+        modelId: localModel.id,
+        status: 'downloading',
+        downloadedBytes: 0,
+        totalBytes: localModel.sizeBytes,
+        updatedAt: Date.now(),
+        downloadedAt: null,
+        error: null,
+      };
+      renderLocalTtsStatus();
+      localTtsStatus = await sendMsg<LocalTtsModelStatus>({ type: 'DOWNLOAD_LOCAL_TTS_MODEL', modelId: localModel.id });
+      renderLocalTtsStatus();
+      flashSaveBanner();
+    } catch (error) {
+      localTtsStatus = {
+        modelId: localModel.id,
+        status: 'error',
+        downloadedBytes: 0,
+        totalBytes: localModel.sizeBytes,
+        updatedAt: Date.now(),
+        downloadedAt: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+      renderLocalTtsStatus();
+    }
+  });
+  deleteLocalTtsBtn.addEventListener('click', async () => {
+    if (!confirm('Remove the downloaded local neural TTS model? Chrome TTS will continue to work.')) return;
+    localTtsStatus = await sendMsg<LocalTtsModelStatus>({ type: 'DELETE_LOCAL_TTS_MODEL', modelId: localModel.id });
+    if (settings.ttsProvider === 'local-neural') {
+      settings = { ...settings, ttsProvider: 'chrome' };
+      ttsProvider.value = 'chrome';
+      await save({ ttsProvider: 'chrome' });
+    }
+    renderLocalTtsStatus();
+  });
+  chrome.runtime.onMessage.addListener((message: unknown) => {
+    const progress = message as Partial<Extract<ExtMessage, { type: 'LOCAL_TTS_DOWNLOAD_PROGRESS' }>>;
+    if (progress.type !== 'LOCAL_TTS_DOWNLOAD_PROGRESS' || !progress.status) return;
+    localTtsStatus = progress.status;
+    renderLocalTtsStatus();
+  });
+  updateReadAloudState();
+  void loadLocalTtsStatus();
+  void loadTtsVoices();
+
+  const segmentationMode = $<HTMLSelectElement>('segmentationMode');
+  segmentationMode.value = effectiveSegmentationMode(settings.segmentationMode);
+  segmentationMode.addEventListener('change', () => {
+    settings = { ...settings, segmentationMode: segmentationMode.value as Settings['segmentationMode'] };
+    syncWpmLabel();
+    void save({ segmentationMode: settings.segmentationMode });
+  });
+  updateSegmentationState();
+
   bindToggle('warmupRamp', value => void save({ warmupRamp: value }));
   bindToggle('adaptivePacing', value => void save({ adaptivePacing: value }));
   bindToggle('sentenceMode', value => void save({ sentenceMode: value }));
@@ -131,7 +338,88 @@ function initPlayback(): void {
   });
 
   function syncWpmLabel(): void {
-    wpmVal.textContent = `${settings.wpm} WPM · ${intervalLabel(settings.wpm, settings.chunkSize)}`;
+    wpmVal.textContent =
+      `${settings.wpm} WPM · ${intervalLabel(settings.wpm, settings.chunkSize, effectiveSegmentationMode(settings.segmentationMode), settings.adaptiveChunkSizing)}`;
+  }
+
+  function updateSegmentationState(): void {
+    segmentationMode.disabled = !settings.adaptiveChunkSizing;
+  }
+
+  function updateReadAloudState(): void {
+    ttsVoiceName.disabled = !settings.readAloudEnabled;
+    ttsRate.disabled = !settings.readAloudEnabled;
+    ttsProvider.disabled = !settings.readAloudEnabled;
+    localTtsVoiceId.disabled = !settings.readAloudEnabled || settings.ttsProvider !== 'local-neural' || localTtsStatus?.status !== 'ready';
+    const localSelected = settings.ttsProvider === 'local-neural';
+    localTtsCard.classList.toggle('hidden', !localSelected && localTtsStatus?.status !== 'downloading');
+    ttsProviderHint.textContent = localSelected
+      ? 'If local neural TTS is unavailable, RSVP Reader automatically falls back to Chrome TTS.'
+      : 'Chrome TTS stays as the default and fallback.';
+  }
+
+  async function loadLocalTtsStatus(): Promise<void> {
+    localTtsStatus = await sendMsg<LocalTtsModelStatus>({
+      type: 'GET_LOCAL_TTS_MODEL_STATUS',
+      modelId: localModel.id,
+    });
+    renderLocalTtsStatus();
+  }
+
+  function renderLocalTtsStatus(): void {
+    const status = localTtsStatus ?? {
+      modelId: localModel.id,
+      status: 'not_downloaded',
+      downloadedBytes: 0,
+      totalBytes: localModel.sizeBytes,
+      updatedAt: Date.now(),
+      downloadedAt: null,
+      error: null,
+    } satisfies LocalTtsModelStatus;
+    const progress = localTtsProgressPercent(status);
+    localTtsProgressBar.style.width = `${progress}%`;
+    localTtsProgressLabel.textContent = `${progress}%`;
+    localTtsProgressWrap.classList.toggle('visible', status.status === 'downloading');
+    localTtsStatusPill.className = `status-pill ${status.status === 'not_downloaded' ? '' : status.status}`;
+    localTtsStatusPill.textContent = localTtsStatusLabel(status.status);
+    downloadLocalTtsBtn.disabled = status.status === 'downloading' || status.status === 'ready';
+    deleteLocalTtsBtn.disabled = status.status !== 'ready' && status.status !== 'error';
+
+    if (status.status === 'ready') {
+      localTtsStatusText.textContent =
+        `Ready. ${localModel.shortName} will run locally, and Chrome TTS remains the fallback.`;
+    } else if (status.status === 'downloading') {
+      localTtsStatusText.textContent =
+        `Downloading ${formatModelSize(status.totalBytes)} of model files. You can keep this page open to watch progress.`;
+    } else if (status.status === 'error') {
+      localTtsStatusText.textContent =
+        `Download failed: ${status.error ?? 'unknown error'}. Chrome TTS will continue to work.`;
+    } else {
+      localTtsStatusText.textContent =
+        'Download the model once to enable local neural TTS. Until then, read aloud uses Chrome TTS.';
+    }
+    updateReadAloudState();
+  }
+
+  async function ensureLocalTtsDownloadPermission(): Promise<boolean> {
+    const permissions = { origins: LOCAL_TTS_DOWNLOAD_ORIGINS };
+    if (await chrome.permissions.contains(permissions)) return true;
+    return await chrome.permissions.request(permissions);
+  }
+
+  async function loadTtsVoices(): Promise<void> {
+    const voices = await sendMsg<TtsVoiceOption[]>({ type: 'GET_TTS_VOICES' });
+    ttsVoiceName.innerHTML = '<option value="">System default</option>';
+    voices.forEach(voice => {
+      const option = document.createElement('option');
+      option.value = voice.voiceName;
+      option.textContent = [voice.voiceName, voice.lang, voice.remote ? 'remote' : 'local']
+        .filter(Boolean)
+        .join(' · ');
+      option.selected = voice.voiceName === settings.ttsVoiceName;
+      ttsVoiceName.appendChild(option);
+    });
+    ttsVoiceName.value = settings.ttsVoiceName;
   }
 
   initPunctuationPauses();
@@ -205,6 +493,20 @@ function initPunctuationPauses(): void {
       void save({ punctuationPauses: settings.punctuationPauses });
     });
   });
+}
+
+function localTtsStatusLabel(status: LocalTtsModelStatus['status']): string {
+  switch (status) {
+    case 'ready':
+      return 'Ready';
+    case 'downloading':
+      return 'Downloading';
+    case 'error':
+      return 'Needs retry';
+    case 'not_downloaded':
+    default:
+      return 'Not downloaded';
+  }
 }
 
 function initDisplay(): void {
@@ -298,6 +600,7 @@ function initDisplay(): void {
   });
 
   updatePreview({});
+  bindToggle('peripheralVisionMode', value => void save({ peripheralVisionMode: value }));
 }
 
 function buildThemeGrid(): void {
@@ -647,6 +950,7 @@ async function loadBookmarks(): Promise<void> {
 
 function renderBookmarkCard(bookmark: Bookmark): HTMLElement {
   const pct = bookmark.totalWords > 0 ? Math.round((bookmark.wordIndex / bookmark.totalWords) * 100) : '?';
+  const canOpen = isOpenableBookmarkUrl(bookmark.url);
   const card = document.createElement('div');
   card.className = 'bookmark-card';
   card.innerHTML = `
@@ -656,13 +960,12 @@ function renderBookmarkCard(bookmark: Bookmark): HTMLElement {
       <div class="bookmark-meta">${new Date(bookmark.timestamp).toLocaleString()}</div>
     </div>
     <div class="bookmark-actions">
-      <button class="bm-btn go-btn">Open</button>
+      <button class="bm-btn go-btn"${canOpen ? '' : ' disabled'}>${canOpen ? 'Open' : 'Unavailable'}</button>
       <button class="bm-btn danger del-btn">Delete</button>
     </div>
   `;
   card.querySelector('.go-btn')!.addEventListener('click', () => {
-    // Only open http/https URLs to prevent javascript: or data: navigation.
-    if (isSafeUrl(bookmark.url)) {
+    if (canOpen) {
       chrome.tabs.create({ url: bookmark.url });
     }
   });
@@ -675,6 +978,47 @@ function renderBookmarkCard(bookmark: Bookmark): HTMLElement {
 
 function initAdvanced(): void {
   const importFile = $<HTMLInputElement>('importFile');
+
+  bindToggle('syncEnabled', value => void save({ syncEnabled: value }));
+  bindToggle('enableUpdateChecker', value => void save({ enableUpdateChecker: value }));
+
+  const manualUpdateCheckBtn = $('manualUpdateCheckBtn');
+  const updateStatusText = $('updateStatusText');
+
+  manualUpdateCheckBtn.addEventListener('click', async () => {
+    manualUpdateCheckBtn.textContent = 'Checking...';
+    manualUpdateCheckBtn.disabled = true;
+    
+    try {
+      const isAvailable = await sendMsg<boolean>({ type: 'CHECK_FOR_UPDATES' });
+      if (isAvailable) {
+        const status = await sendMsg<{updateAvailable?: string, updateUrl?: string}>({ type: 'GET_UPDATE_STATUS' });
+        updateStatusText.innerHTML = `Update <strong>v${status.updateAvailable}</strong> is available! <a href="${status.updateUrl}" target="_blank">Download ZIP</a>`;
+        updateStatusText.style.display = 'block';
+        updateStatusText.style.color = '#38bdf8';
+      } else {
+        updateStatusText.textContent = 'You are already on the latest version.';
+        updateStatusText.style.display = 'block';
+        updateStatusText.style.color = '#10b981';
+      }
+    } catch {
+      updateStatusText.textContent = 'Failed to check for updates.';
+      updateStatusText.style.display = 'block';
+      updateStatusText.style.color = '#ef4444';
+    }
+    
+    manualUpdateCheckBtn.textContent = 'Check Now';
+    manualUpdateCheckBtn.disabled = false;
+  });
+
+  // Display initial update status if available
+  void sendMsg<{updateAvailable?: string, updateUrl?: string}>({ type: 'GET_UPDATE_STATUS' }).then(status => {
+    if (status.updateAvailable) {
+      updateStatusText.innerHTML = `Update <strong>v${status.updateAvailable}</strong> is available! <a href="${status.updateUrl}" target="_blank">Download ZIP</a>`;
+      updateStatusText.style.display = 'block';
+      updateStatusText.style.color = '#38bdf8';
+    }
+  });
 
   $('exportBundle').addEventListener('click', async () => {
     const bundle = await sendMsg<ExportBundle>({ type: 'EXPORT_BUNDLE' });
@@ -720,6 +1064,10 @@ function bindToggle(
   input.addEventListener('change', () => onChange(input.checked));
 }
 
+function effectiveSegmentationMode(segmentationMode: Settings['segmentationMode']): Exclude<Settings['segmentationMode'], 'fixed'> {
+  return segmentationMode === 'fixed' ? 'phrase' : segmentationMode;
+}
+
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -733,11 +1081,11 @@ function escHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** Only open http/https URLs — prevents javascript: or data: navigation from stored bookmarks. */
-function isSafeUrl(url: string): boolean {
+/** Only open browser-safe http/https/file URLs directly. */
+function isOpenableBookmarkUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' || parsed.protocol === 'file:';
   } catch {
     return false;
   }
@@ -763,4 +1111,61 @@ function groupBy<T>(items: T[], getKey: (item: T) => string): Record<string, T[]
     groups[key].push(item);
     return groups;
   }, {});
+}
+
+function formatLastTrainingSession(summary: NonNullable<ReadingTrainingProgress['lastSessionSummary']>): string {
+  const outcome = summary.challengeCompleted ? 'cleared' : 'attempted';
+  return [
+    `${new Date(summary.completedAt).toLocaleString()} · ${summary.wordsRead.toLocaleString()} words in ${formatDurationShort(summary.activeTimeMs)} at ${summary.effectiveWpm.toLocaleString()} WPM.`,
+    `${outcome === 'cleared' ? 'Challenge cleared' : 'Challenge attempted'}: ${summary.challengeTitle}.`,
+    `Rewinds ${summary.rewinds}, pauses ${summary.pauses}, points earned ${summary.pointsEarned}.`,
+  ].join(' ');
+}
+
+function initFeedback(): void {
+  bindToggle('showFeedbackWidget', value => void save({ showFeedbackWidget: value }));
+
+  const typeSelect = $<HTMLSelectElement>('optionFeedbackType');
+  const msgInput = $<HTMLTextAreaElement>('optionFeedbackMsg');
+  const statusSpan = $('optionFeedbackStatus');
+  const submitBtn = $<HTMLButtonElement>('optionFeedbackBtn');
+  const ratingGroup = $('optionFeedbackRating');
+
+  $$<HTMLButtonElement>('.chip', ratingGroup).forEach(chip => {
+    chip.addEventListener('click', () => {
+      $$('.chip', ratingGroup).forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    const message = msgInput.value.trim();
+    if (!message) {
+      statusSpan.textContent = 'Please enter a message.';
+      statusSpan.style.color = '#ef4444';
+      return;
+    }
+
+    const type = typeSelect.value as FeedbackPayload['type'];
+    const activeRating = ratingGroup.querySelector('.chip.active') as HTMLElement;
+    const rating = activeRating ? activeRating.dataset['value'] as FeedbackPayload['rating'] : undefined;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    try {
+      await submitFeedback({ type, rating, message });
+      statusSpan.textContent = 'Thank you for your feedback!';
+      statusSpan.style.color = 'var(--rsvp-focal-color, #fb923c)';
+      msgInput.value = '';
+    } catch (err: any) {
+      statusSpan.textContent = `Error: ${err.message}`;
+      statusSpan.style.color = '#ef4444';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Anonymous Feedback';
+      setTimeout(() => {
+        statusSpan.textContent = '';
+      }, 5000);
+    }
+  });
 }

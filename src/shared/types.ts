@@ -37,6 +37,8 @@ export interface Chunk {
   wordCount: number;
   blockIds: string[];
   isDialogue: boolean;
+  containsNumber: boolean;
+  isCodeLike: boolean;
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────
@@ -51,6 +53,10 @@ export type ThemeName =
   | 'midnight'
   | 'forest'
   | 'ember';
+
+export type ReadingMode = 'balanced' | 'dialogue' | 'technical' | 'story';
+export type SegmentationMode = 'fixed' | 'phrase' | 'clause' | 'meaning';
+export type TtsProvider = 'chrome' | 'local-neural';
 
 export type AuthorNotesMode = 'exclude' | 'include';
 export type SiteId =
@@ -104,10 +110,19 @@ export interface PersonalizationSnapshot {
 export interface Settings {
   // ── Playback ──
   chunkSize: number;          // words per chunk (1–5)
+  adaptiveChunkSizing: boolean;
   wpm: number;                // base words per minute (100–1500)
   warmupRamp: boolean;        // slow start for first ~10 s
   wpmStep: number;            // step for keyboard / quick controls
   skipBackSeconds: number;    // approximate rewind action
+  readingMode: ReadingMode;
+  segmentationMode: SegmentationMode;
+  readAloudEnabled: boolean;
+  ttsProvider: TtsProvider;
+  ttsVoiceName: string;
+  ttsRate: number;
+  localTtsModelId: string;
+  localTtsVoiceId: string;
 
   // ── Display ──
   font: string;               // CSS font-family name
@@ -119,6 +134,7 @@ export interface Settings {
   theme: ThemeName;
   showStats: boolean;
   highlightParagraph: boolean;
+  peripheralVisionMode: boolean;
 
   // ── ADHD features ──
   adhdBionic: boolean;        // bold leading chars
@@ -136,6 +152,7 @@ export interface Settings {
   enabledSiteHosts: string[];
   favoriteSites: SiteId[];
   preferTranslatedText: boolean;
+  speedTrainerEnabled: boolean;
 
   // ── Personalization (Phase 4, opt-in) ──
   personalizationEnabled: boolean;
@@ -145,6 +162,19 @@ export interface Settings {
 
   // ── Keyboard shortcuts ──
   shortcuts: ShortcutMap;
+
+  // ── External Integrations ──
+  syncEnabled: boolean;
+  enableUpdateChecker: boolean;
+  showFeedbackWidget: boolean;
+}
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+export interface FeedbackPayload {
+  type: 'general' | 'bug' | 'feature_request';
+  rating?: 'positive' | 'neutral' | 'negative';
+  message: string;
 }
 
 // ─── Parsed chapter data ─────────────────────────────────────────────────────
@@ -191,6 +221,33 @@ export interface ReadingStats {
   effectiveWpm: number;
 }
 
+export interface TrainingSessionSummary {
+  completedAt: number;
+  wordsRead: number;
+  activeTimeMs: number;
+  effectiveWpm: number;
+  rewinds: number;
+  pauses: number;
+  challengeTitle: string;
+  challengeCompleted: boolean;
+  pointsEarned: number;
+}
+
+export interface ReadingTrainingProgress {
+  sessionsCompleted: number;
+  totalWordsRead: number;
+  totalActiveTimeMs: number;
+  streakDays: number;
+  lastSessionDay: string | null;
+  lastSessionAt: number | null;
+  bestEffectiveWpm: number;
+  bestWordsRead: number;
+  bestFocusWords: number;
+  completedChallenges: number;
+  totalPoints: number;
+  lastSessionSummary: TrainingSessionSummary | null;
+}
+
 export interface PersonalizationEvent {
   id: string;
   chapterUrl: string;
@@ -223,6 +280,53 @@ export interface ExportBundle {
     events: PersonalizationEvent[];
     model: PersonalizationModel | null;
   };
+  training?: ReadingTrainingProgress;
+}
+
+export type TtsEventType =
+  | 'start'
+  | 'end'
+  | 'word'
+  | 'sentence'
+  | 'marker'
+  | 'interrupted'
+  | 'cancelled'
+  | 'error'
+  | 'pause'
+  | 'resume';
+
+export interface TtsVoiceOption {
+  voiceName: string;
+  lang: string;
+  remote: boolean;
+  extensionId: string;
+  eventTypes: string[];
+}
+
+export interface TtsSpeakSettings {
+  voiceName: string;
+  rate: number;
+  provider?: TtsProvider;
+  localModelId?: string;
+  localVoiceId?: string;
+}
+
+export type LocalTtsModelStatusName = 'not_downloaded' | 'downloading' | 'ready' | 'error';
+
+export interface LocalTtsModelStatus {
+  modelId: string;
+  status: LocalTtsModelStatusName;
+  downloadedBytes: number;
+  totalBytes: number;
+  updatedAt: number;
+  downloadedAt: number | null;
+  error: string | null;
+}
+
+export interface LocalTtsVoiceOption {
+  id: string;
+  name: string;
+  description: string;
 }
 
 // ─── Extension messages ──────────────────────────────────────────────────────
@@ -244,8 +348,23 @@ export type ExtMessage =
   | { type: 'GET_PERSONALIZATION_MODEL' }
   | { type: 'SAVE_PERSONALIZATION_MODEL'; model: PersonalizationModel | null }
   | { type: 'RESET_PERSONALIZATION' }
+  | { type: 'GET_TRAINING_PROGRESS' }
+  | { type: 'RESET_TRAINING_PROGRESS' }
+  | { type: 'GET_TTS_VOICES' }
+  | { type: 'TTS_SPEAK'; requestId: number; utterance: string; settings: TtsSpeakSettings; clientId?: string }
+  | { type: 'TTS_STOP' }
+  | { type: 'TTS_EVENT'; requestId: number; eventType: TtsEventType; charIndex?: number; errorMessage?: string; clientId?: string }
+  | { type: 'GET_LOCAL_TTS_MODEL_STATUS'; modelId?: string }
+  | { type: 'DOWNLOAD_LOCAL_TTS_MODEL'; modelId?: string }
+  | { type: 'DELETE_LOCAL_TTS_MODEL'; modelId?: string }
+  | { type: 'LOCAL_TTS_DOWNLOAD_PROGRESS'; status: LocalTtsModelStatus }
+  | { type: 'LOCAL_TTS_SPEAK'; requestId: number; utterance: string; settings: TtsSpeakSettings; tabId: number | null; clientId?: string }
+  | { type: 'LOCAL_TTS_STOP' }
+  | { type: 'LOCAL_TTS_EVENT'; requestId: number; eventType: TtsEventType; tabId: number | null; charIndex?: number; errorMessage?: string; clientId?: string }
   | { type: 'OVERLAY_OPENED' }
-  | { type: 'OVERLAY_CLOSED'; stats?: ReadingStats };
+  | { type: 'OVERLAY_CLOSED'; stats?: ReadingStats }
+  | { type: 'CHECK_FOR_UPDATES' }
+  | { type: 'GET_UPDATE_STATUS' };
 
 export type ExtResponse<T = void> =
   | { ok: true; data: T }

@@ -1,11 +1,13 @@
 import { DEFAULT_SETTINGS, STORAGE_SCHEMA_VERSION } from './constants';
 import { idbDelete, idbGet, idbSet } from './idb';
 import { DEFAULT_ENABLED_SITE_HOSTS, SUPPORTED_SITES } from './sites';
+import { createEmptyTrainingProgress, normalizeTrainingProgress } from './training';
 import type {
   Bookmark,
   ExportBundle,
   PersonalizationEvent,
   PersonalizationModel,
+  ReadingTrainingProgress,
   Settings,
 } from './types';
 
@@ -44,6 +46,7 @@ const BOOKMARK_PREFIX = 'bm_';
 const STORAGE_META_KEY = 'rsvp_storage_meta';
 const PERSONALIZATION_EVENTS_KEY = 'rsvp_personalization_events';
 const PERSONALIZATION_MODEL_KEY = 'rsvp_personalization_model';
+const TRAINING_PROGRESS_KEY = 'rsvp_training_progress';
 
 interface StorageMeta {
   version: number;
@@ -74,10 +77,13 @@ export async function getSettings(): Promise<Settings> {
   const storedSync = syncResult[SETTINGS_SYNC_KEY] as Partial<Settings> | undefined;
   const storedLocal = localResult[SETTINGS_LOCAL_KEY] as Partial<Settings> | undefined;
   const stored = { ...storedSync, ...storedLocal };
+  const inferredAdaptiveChunkSizing =
+    stored?.adaptiveChunkSizing ?? ((stored?.segmentationMode ?? DEFAULT_SETTINGS.segmentationMode) !== 'fixed');
   // Deep-merge so new default keys are always present after extension updates
   return normalizeSiteSettings({
     ...DEFAULT_SETTINGS,
     ...stored,
+    adaptiveChunkSizing: inferredAdaptiveChunkSizing,
     shortcuts: {
       ...DEFAULT_SETTINGS.shortcuts,
       ...(stored?.shortcuts ?? {}),
@@ -103,19 +109,36 @@ export async function saveSettings(patch: Partial<Settings>): Promise<void> {
       ...(patch.punctuationPauses ?? {}),
     },
   };
-  const { sync, local } = splitSettings(normalizeSiteSettings(merged));
-  await Promise.all([
-    chrome.storage.sync.set({ [SETTINGS_SYNC_KEY]: sync }),
-    chrome.storage.local.set({ [SETTINGS_LOCAL_KEY]: local }),
-  ]);
+  const normalized = normalizeSiteSettings(merged);
+  
+  if (normalized.syncEnabled) {
+    const { sync, local } = splitSettings(normalized);
+    await Promise.all([
+      chrome.storage.sync.set({ [SETTINGS_SYNC_KEY]: sync }),
+      chrome.storage.local.set({ [SETTINGS_LOCAL_KEY]: local }),
+    ]);
+  } else {
+    // Save everything locally and remove from sync so it doesn't leak.
+    await Promise.all([
+      chrome.storage.local.set({ [SETTINGS_LOCAL_KEY]: normalized }),
+      chrome.storage.sync.remove(SETTINGS_SYNC_KEY),
+    ]);
+  }
 }
 
 export async function resetSettings(): Promise<void> {
   const { sync, local } = splitSettings(normalizeSiteSettings(DEFAULT_SETTINGS));
-  await Promise.all([
-    chrome.storage.sync.set({ [SETTINGS_SYNC_KEY]: sync }),
-    chrome.storage.local.set({ [SETTINGS_LOCAL_KEY]: local }),
-  ]);
+  if (DEFAULT_SETTINGS.syncEnabled) {
+    await Promise.all([
+      chrome.storage.sync.set({ [SETTINGS_SYNC_KEY]: sync }),
+      chrome.storage.local.set({ [SETTINGS_LOCAL_KEY]: local }),
+    ]);
+  } else {
+    await Promise.all([
+      chrome.storage.local.set({ [SETTINGS_LOCAL_KEY]: normalizeSiteSettings(DEFAULT_SETTINGS) }),
+      chrome.storage.sync.remove(SETTINGS_SYNC_KEY),
+    ]);
+  }
 }
 
 // ─── Bookmarks ───────────────────────────────────────────────────────────────
@@ -183,20 +206,37 @@ export async function resetPersonalization(): Promise<void> {
   ]);
 }
 
+// ─── Speed training ──────────────────────────────────────────────────────────
+
+export async function getTrainingProgress(): Promise<ReadingTrainingProgress> {
+  const stored = await idbGet<ReadingTrainingProgress>(TRAINING_PROGRESS_KEY);
+  return normalizeTrainingProgress(stored);
+}
+
+export async function saveTrainingProgress(progress: ReadingTrainingProgress): Promise<void> {
+  await idbSet(TRAINING_PROGRESS_KEY, normalizeTrainingProgress(progress));
+}
+
+export async function resetTrainingProgress(): Promise<void> {
+  await idbSet(TRAINING_PROGRESS_KEY, createEmptyTrainingProgress());
+}
+
 // ─── Import / export ─────────────────────────────────────────────────────────
 
 export async function exportBundle(): Promise<ExportBundle> {
-  const [settings, bookmarks, events, model] = await Promise.all([
+  const [settings, bookmarks, events, model, training] = await Promise.all([
     getSettings(),
     getAllBookmarks(),
     getPersonalizationEvents(),
     getPersonalizationModel(),
+    getTrainingProgress(),
   ]);
   return {
     version: 1,
     settings,
     bookmarks,
     personalization: { events, model },
+    training,
   };
 }
 
@@ -208,6 +248,7 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
     chrome.storage.local.remove(bookmarkKeys),
     savePersonalizationEvents(bundle.personalization.events),
     savePersonalizationModel(bundle.personalization.model),
+    saveTrainingProgress(bundle.training ?? createEmptyTrainingProgress()),
   ]);
   await Promise.all(bundle.bookmarks.map(saveBookmark));
 }

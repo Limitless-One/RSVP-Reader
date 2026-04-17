@@ -207,6 +207,100 @@ body {
 .sec-btn.danger { color: var(--accent); border-color: rgba(224,90,90,0.3); }
 .sec-btn.danger:hover { background: rgba(224,90,90,0.1); }
 
+.local-tts-card {
+  background: linear-gradient(135deg, rgba(91,196,138,0.09), rgba(255,255,255,0.03));
+  border: 1px solid rgba(91,196,138,0.18);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.local-tts-card.hidden { display: none; }
+
+.local-tts-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.status-pill.ready {
+  color: var(--success);
+  border-color: rgba(91,196,138,0.35);
+  background: rgba(91,196,138,0.1);
+}
+
+.status-pill.error {
+  color: var(--accent);
+  border-color: rgba(224,90,90,0.35);
+  background: rgba(224,90,90,0.1);
+}
+
+.status-pill.downloading {
+  color: #ffd166;
+  border-color: rgba(255,209,102,0.35);
+  background: rgba(255,209,102,0.1);
+}
+
+.local-tts-meta,
+.local-tts-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.local-tts-meta span {
+  color: var(--muted);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.local-tts-progress {
+  display: none;
+  grid-template-columns: 1fr 42px;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.local-tts-progress.visible { display: grid; }
+
+.local-tts-progress-track {
+  height: 8px;
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.local-tts-progress-bar {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), #ffd166);
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
 /* ── Preview box */
 .preview-box {
   background: #1a1a2e;
@@ -235,6 +329,72 @@ body {
   color: var(--muted);
 }
 .bionic-demo b { color: var(--text); font-weight: 700; }
+
+.training-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.training-stat-card,
+.training-challenge-card,
+.training-session-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.training-stat-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.training-stat-value {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+  color: var(--text);
+}
+
+.training-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.training-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(224,90,90,0.12);
+  border: 1px solid rgba(224,90,90,0.2);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.training-challenge-title {
+  margin-top: 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.training-challenge-desc,
+.training-session-copy {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
 
 .supported-sites {
   display: flex;

@@ -4,9 +4,11 @@ import { ScribbleHubParser } from './scribblehub';
 import { WebnovelParser } from './webnovel';
 import { WattpadParser, AO3Parser, FanFictionParser, XenForoParser } from './wattpad';
 import { NovelBinParser, RanobesParser, WordPressParser, WtrLabParser } from './additional';
+import { LocalFileParser } from './local-file';
 import { GenericParser } from './generic';
 import type { ParsedChapter } from '../../shared/types';
 import type { ParserOptions } from './base';
+import { isLocalTextFileUrl } from '../../shared/local-text';
 import {
   DEFAULT_ENABLED_SITE_HOSTS,
   DEFAULT_ENABLED_SITES,
@@ -26,6 +28,7 @@ const PARSERS: SiteParser[] = [
   RanobesParser,
   WtrLabParser,
   WordPressParser,
+  LocalFileParser,
   GenericParser,
 ];
 
@@ -35,6 +38,7 @@ const PARSERS: SiteParser[] = [
  */
 export function extractCurrentPage(options?: ParserOptions): ParsedChapter | null {
   const url = location.href;
+  const isLocalTextFile = isLocalTextFileUrl(url);
   const enabledSites = new Set(options?.enabledSites ?? DEFAULT_ENABLED_SITES);
   const enabledSiteHosts = new Set(options?.enabledSiteHosts ?? DEFAULT_ENABLED_SITE_HOSTS);
   const matchingSpecificParsers = PARSERS.filter(parser => parser.id !== 'generic' && parser.canHandle(url));
@@ -49,15 +53,20 @@ export function extractCurrentPage(options?: ParserOptions): ParsedChapter | nul
   }
 
   for (const parser of PARSERS) {
-    if (!enabledSites.has(parser.id)) continue;
+    const parserEnabled = enabledSites.has(parser.id) || (isLocalTextFile && parser === LocalFileParser);
+    if (!parserEnabled) continue;
     if (parser.canHandle(url)) {
       try {
         const result = parser.extract(options);
-        if (result && result.text.length >= 100) return result;
+        if (result && result.text.length >= minimumExtractedTextLength(url)) return result;
       } catch (err) {
         console.warn('[RSVP] Parser error:', err);
       }
     }
   }
   return null;
+}
+
+function minimumExtractedTextLength(url: string): number {
+  return isLocalTextFileUrl(url) ? 1 : 100;
 }
